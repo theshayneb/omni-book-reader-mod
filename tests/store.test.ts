@@ -192,4 +192,16 @@ describe("reader data store", () => {
     await store.flush();
     expect(store.mergeLegacyData([legacyEntry])).toBe(0);
   });
+
+  it("takes over the original plugin's settings on a fresh install, except the sync folder", async () => {
+    const store = new ReaderDataStore(new MemoryAdapter());
+    await store.load();
+    const original = { settings: { theme: "sepia", exportTemplate: "callout", syncFolder: "Omni Book Reader/Sync" }, books: {} };
+    expect(store.mergeLegacyData([{ path: ".obsidian/plugins/omni-book-reader/data.json", value: original }])).toBe(1);
+    expect(store.settings).toMatchObject({ theme: "sepia", exportTemplate: "callout", syncFolder: "Omni Book Reader Mod/Sync" });
+
+    const other = { settings: { theme: "dark" }, books: {} };
+    store.mergeLegacyData([{ path: ".obsidian/plugins/another-copy/data.json", value: other }]);
+    expect(store.settings.theme).toBe("sepia");
+  });
 });

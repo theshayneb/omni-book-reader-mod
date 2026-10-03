@@ -22,7 +22,7 @@ export interface ReadingSyncHost {
   onSyncedBookChanges(changes: AppliedBookChange[]): void;
 }
 
-const DEVICE_ID_KEY = "omni-book-reader-sync-device-id";
+const DEVICE_ID_KEY = "omni-book-reader-mod-sync-device-id";
 const RECORD_DELAY_MS = 3000;
 const RECORD_MAX_WAIT_MS = 15000;
 

@@ -1,7 +1,7 @@
 import { App, Menu, Modal, Notice, Plugin, TFile, normalizePath, setIcon, type Command } from "obsidian";
-import { AnnotationDocumentService, type AnnotationDocumentInput } from "./annotation-documents";
+import { AnnotationDocumentService, PROTOCOL_ACTION, isBookLink, type AnnotationDocumentInput } from "./annotation-documents";
 import { OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE, OmniBookReaderBookshelfView } from "./bookshelf-view";
-import { loadLegacyPluginData } from "./legacy-plugin-data";
+import { ORIGINAL_PLUGIN_ID, loadLegacyPluginData } from "./legacy-plugin-data";
 import { OMNI_BOOK_READER_VIEW_TYPE, OmniBookReaderView } from "./reader-view";
 import { ReadingSyncService } from "./reading-sync";
 import type { AppliedBookChange } from "./reading-sync-model";
@@ -73,7 +73,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         this.app.vault.adapter,
         pluginsDirectory,
         currentPluginDirectory,
-        this.manifest.id,
+        [this.manifest.id, ORIGINAL_PLUGIN_ID],
       );
       if (legacyData.length && this.store.mergeLegacyData(legacyData)) {
         await this.store.flush();
@@ -103,7 +103,7 @@ export default class OmniBookReaderPlugin extends Plugin {
       new Notice("Omni Book Reader could not register .epub files. Disable other EPUB reader plugins and reload Obsidian.");
     }
 
-    this.registerObsidianProtocolHandler("omni-book-reader", (params) => {
+    this.registerObsidianProtocolHandler(PROTOCOL_ACTION, (params) => {
       void this.openProtocolLocation(params.path, params.cfi, params.sourceVault ?? params.vault);
     });
     this.registerDomEvent(document, "click", (event: MouseEvent) => {
@@ -111,7 +111,7 @@ export default class OmniBookReaderPlugin extends Plugin {
       if (!(target instanceof Element)) return;
       const anchor = target.closest("a");
       const href = anchor?.getAttribute("href") ?? "";
-      if (!href.startsWith("obsidian://omni-book-reader?")) return;
+      if (!isBookLink(href)) return;
       let url: URL;
       try {
         url = new URL(href);

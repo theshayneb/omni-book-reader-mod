@@ -10,7 +10,7 @@ import {
   WorkspaceLeaf,
   setIcon,
 } from "obsidian";
-import type { AnnotationDocumentInput } from "./annotation-documents";
+import { PROTOCOL_ACTION, type AnnotationDocumentInput } from "./annotation-documents";
 import { annotationValueAtPoint } from "./annotation-hit-test";
 import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
@@ -74,7 +74,7 @@ import {
   isValidCfi,
 } from "./utils";
 
-export const OMNI_BOOK_READER_VIEW_TYPE = "omni-book-reader-view";
+export const OMNI_BOOK_READER_VIEW_TYPE = "omni-book-reader-mod-view";
 
 let foliateViewModulePromise: Promise<unknown> | null = null;
 
@@ -960,7 +960,7 @@ export class OmniBookReaderView extends FileView {
       const vault = encodeURIComponent(this.app.vault.getName());
       const path = encodeURIComponent(this.file?.path ?? "");
       const cfi = encodeURIComponent(pending.cfi);
-      void navigator.clipboard.writeText(`obsidian://omni-book-reader?sourceVault=${vault}&path=${path}&cfi=${cfi}`);
+      void navigator.clipboard.writeText(`obsidian://${PROTOCOL_ACTION}?sourceVault=${vault}&path=${path}&cfi=${cfi}`);
     }));
     menu.addItem((item) => item.setTitle("Search the web").setIcon("search").onClick(() => window.open(`https://www.google.com/search?q=${encodeURIComponent(pending.text)}`)));
     menu.addItem((item) => item.setTitle("Translate selection").setIcon("languages").onClick(() => window.open(`https://translate.google.com/?sl=auto&tl=auto&text=${encodeURIComponent(pending.text)}&op=translate`)));

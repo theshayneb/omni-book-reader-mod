@@ -10,6 +10,7 @@ Design documents explain how and why a change is implemented. Product behavior b
 - [`../../AGENTS.md`](../../AGENTS.md): repository workflow and user-interface design constraints.
 - [`systems/reader-selection-navigation.md`](systems/reader-selection-navigation.md): selection ownership, navigation arbitration, chapter boundaries, directionality, and regression coverage.
 - [`systems/release-artifacts.md`](systems/release-artifacts.md): tagged source, generated bundle, attached assets, and remote verification.
+- [`systems/plugin-identity.md`](systems/plugin-identity.md): separate plugin id, links, views and sync folder, and the one-time import from the original plugin.
 - [`systems/annotation-documents.md`](systems/annotation-documents.md): one highlights-and-notes file per book, its format, and moving the older two-file layout.
 - [`systems/reading-sync.md`](systems/reading-sync.md): per-device sync files, merge rules, and ordering invariants for syncing reading data across devices.
 - [`../obsidian-review-versions-json.md`](../obsidian-review-versions-json.md): investigation notes for the Obsidian review requirement around `versions.json`.

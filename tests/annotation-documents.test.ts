@@ -82,7 +82,7 @@ describe("annotation documents", () => {
     expect(markdown.match(/## Chapter 1/g)).toHaveLength(1);
     expect(markdown.indexOf("Early in chapter one")).toBeLessThan(markdown.indexOf("Later in chapter one"));
     expect(markdown).toContain("> Early in chapter one\n\n**Note:** My thoughts");
-    expect(markdown).toContain("> Later in chapter one\n\nPage 14 · 2026-07-19 · #big_idea #archetype · [Open in book](obsidian://omni-book-reader?sourceVault=");
+    expect(markdown).toContain("> Later in chapter one\n\nPage 14 · 2026-07-19 · #big_idea #archetype · [Open in book](obsidian://omni-book-reader-mod?sourceVault=");
     expect(markdown).not.toMatch(/Color|#FFD54F|yellow/i);
     expect(markdown).not.toMatch(/[?&]vault=/);
   });
@@ -160,9 +160,11 @@ describe("annotation documents", () => {
     expect(trash).not.toHaveBeenCalled();
 
     const document = entries.get(documentPath)!;
-    document.content = document.content!.replace("?sourceVault=", "?vault=");
+    document.content = `${document.content!.replace("?sourceVault=", "?vault=")}\n[Old](obsidian://omni-book-reader?sourceVault=V&path=p&cfi=c)\n`;
     await service.migrateLegacyProtocolLinks([state.annotationDocuments]);
-    expect(document.content).toContain("?sourceVault=");
+    expect(document.content).toContain("obsidian://omni-book-reader-mod?sourceVault=Test");
+    expect(document.content).toContain("[Old](obsidian://omni-book-reader-mod?sourceVault=V&path=p&cfi=c)");
+    expect(document.content).not.toMatch(/omni-book-reader\?|[?&]vault=/);
   });
 
   it("moves an old highlight/note pair into the new file and trashes the old files", async () => {

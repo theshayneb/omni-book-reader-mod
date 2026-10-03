@@ -4,6 +4,9 @@ interface PluginManifestIdentity {
   id?: unknown;
 }
 
+/** The upstream plugin this fork replaces; its data is imported once so highlights carry over. */
+export const ORIGINAL_PLUGIN_ID = "omni-book-reader";
+
 export interface LegacyPluginData {
   path: string;
   value: unknown;
@@ -19,7 +22,7 @@ export async function loadLegacyPluginData(
   adapter: LegacyDataAdapter,
   pluginsDirectory: string,
   currentPluginDirectory: string,
-  pluginId: string,
+  pluginIds: readonly string[],
 ): Promise<LegacyPluginData[]> {
   const pluginsPath = normalizePath(pluginsDirectory);
   const currentPath = normalizePath(currentPluginDirectory);
@@ -30,7 +33,7 @@ export async function loadLegacyPluginData(
     if (normalizedDirectory === currentPath) continue;
     try {
       const manifest = JSON.parse(await adapter.read(normalizePath(`${normalizedDirectory}/manifest.json`))) as PluginManifestIdentity;
-      if (manifest.id !== pluginId) continue;
+      if (typeof manifest.id !== "string" || !pluginIds.includes(manifest.id)) continue;
       const dataPath = normalizePath(`${normalizedDirectory}/data.json`);
       if (!await adapter.exists(dataPath)) continue;
       results.push({ path: dataPath, value: JSON.parse(await adapter.read(dataPath)) as unknown });

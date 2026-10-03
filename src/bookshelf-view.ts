@@ -3,7 +3,7 @@ import { extractEpubCover } from "./epub-cover";
 import type { ReaderDataStore } from "./store";
 import type { ReaderSettings } from "./types";
 
-export const OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE = "omni-book-reader-bookshelf-view";
+export const OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE = "omni-book-reader-mod-bookshelf-view";
 
 export interface BookshelfHost {
   store: ReaderDataStore;

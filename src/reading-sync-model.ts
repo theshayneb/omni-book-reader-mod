@@ -21,7 +21,7 @@ import { isValidCfi, normalizeVaultPath } from "./utils";
  * - annotation document paths: a single-file location beats an old two-file pair, then the earliest created wins
  */
 
-export const SYNC_FORMAT = "omni-book-reader-sync";
+export const SYNC_FORMAT = "omni-book-reader-mod-sync";
 export const SYNC_VERSION = 1;
 
 export type SyncedHighlight = Omit<ReaderHighlight, "stale">;

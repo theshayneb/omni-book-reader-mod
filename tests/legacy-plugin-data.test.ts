@@ -41,7 +41,7 @@ describe("legacy plugin data recovery", () => {
       adapter,
       ".obsidian/plugins",
       ".obsidian/plugins/omni-book-reader",
-      "omni-book-reader",
+      ["omni-book-reader-mod", "omni-book-reader"],
     );
 
     expect(results).toEqual([{

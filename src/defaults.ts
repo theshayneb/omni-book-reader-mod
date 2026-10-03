@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   interfaceDensity: "comfortable",
   hasSeenReaderTutorial: false,
   syncEnabled: true,
-  syncFolder: "Omni Book Reader/Sync",
+  syncFolder: "Omni Book Reader Mod/Sync",
 };
 
 const themes = new Set(["auto", "light", "dark", "sepia"]);

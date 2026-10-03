@@ -113,6 +113,15 @@ function chapterGroups(highlights: ReaderHighlight[]): Array<{ chapter: string; 
   return groups;
 }
 
+/** `obsidian://` action for links back into a book. Separate from the original plugin's `omni-book-reader`. */
+export const PROTOCOL_ACTION = "omni-book-reader-mod";
+const PROTOCOL_PREFIXES = [`obsidian://${PROTOCOL_ACTION}?`, "obsidian://omni-book-reader?"];
+
+/** True for links made by this plugin or, from before it became separate, by the original one. */
+export function isBookLink(href: string): boolean {
+  return PROTOCOL_PREFIXES.some((prefix) => href.startsWith(prefix));
+}
+
 export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string): string {
   const encode = (value: string): string => encodeURIComponent(value)
     .replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
@@ -123,7 +132,7 @@ export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string)
     `path=${encode(normalizePath(sourcePath))}`,
     `cfi=${encode(cfi)}`,
   ].filter(Boolean).join("&");
-  return `obsidian://omni-book-reader?${params}`;
+  return `obsidian://${PROTOCOL_ACTION}?${params}`;
 }
 
 function sourceLink(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
@@ -331,10 +340,10 @@ export class AnnotationDocumentService {
           const file = this.vault.getAbstractFileByPath(path);
           if (!isFile(file) || file.extension.toLowerCase() !== "md") continue;
           const current = await this.vault.cachedRead(file);
-          const next = current.replaceAll(
-            "obsidian://omni-book-reader?vault=",
-            "obsidian://omni-book-reader?sourceVault=",
-          );
+          // Older links used `vault=` (reserved by Obsidian) and the original plugin's action.
+          const next = current
+            .replace(/obsidian:\/\/omni-book-reader(?:-mod)?\?vault=/g, `obsidian://${PROTOCOL_ACTION}?sourceVault=`)
+            .replaceAll("obsidian://omni-book-reader?", `obsidian://${PROTOCOL_ACTION}?`);
           if (next !== current) await this.vault.modify(file, next);
         }
       });

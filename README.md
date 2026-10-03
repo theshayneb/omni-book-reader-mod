@@ -1,4 +1,6 @@
-# Omni Book Reader
+# Omni Book Reader Mod
+
+A personal fork of Omni Book Reader. It installs as a separate plugin (id `omni-book-reader-mod`) with its own settings, sync folder, views and `obsidian://omni-book-reader-mod` links, so the original plugin's updates never replace it. On first run it imports reading progress, highlights, notes, bookmarks and reader settings once from the original plugin's folder if that is present. Disable the original plugin: only one plugin can open `.epub` files.
 
 An all-in-one, local-first EPUB 2/3 reading workbench for Obsidian. It supports paginated and scrolled reading, nested tables of contents, full-book search, reading-position restore, bookmarks, color highlights, and notes attached to highlights.
 
@@ -23,7 +25,7 @@ Additional reading tools:
 
 ## Syncing across devices
 
-Reading position, highlights, notes, bookmarks, reading time, and finished state sync between devices that share the vault. Each device writes its own file to `Omni Book Reader/Sync/` (configurable in settings), and the plugin merges the other devices' files as they arrive. Edits made on several devices before they sync are combined rather than overwritten, and deletions carry over. If a book is open when a newer position arrives from another device, the reader moves there.
+Reading position, highlights, notes, bookmarks, reading time, and finished state sync between devices that share the vault. Each device writes its own file to `Omni Book Reader Mod/Sync/` (configurable in settings), and the plugin merges the other devices' files as they arrive. Edits made on several devices before they sync are combined rather than overwritten, and deletions carry over. If a book is open when a newer position arrives from another device, the reader moves there.
 
 With Obsidian Sync, turn on **Sync all other types** in Obsidian Sync's settings so the `.json` sync files are included. Any other file sync service works too. Display settings stay per device. Use **Omni Book Reader: Sync reading data now** from the command palette to force a sync.
 
@@ -69,7 +71,7 @@ The generated `main.js` is not committed; GitHub Actions builds it and attaches 
 3. Commit, push, then create and push a matching tag such as `0.6.1`.
 4. GitHub Actions validates the build and publishes the three plugin files as a GitHub Release.
 
-For a local manual install, copy those three files into `<vault>/.obsidian/plugins/omni-book-reader/`, then reload the plugin in Obsidian.
+For a local manual install, copy those three files into `<vault>/.obsidian/plugins/omni-book-reader-mod/`, then reload the plugin in Obsidian.
 
 ## License
 

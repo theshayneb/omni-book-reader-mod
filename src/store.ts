@@ -259,7 +259,16 @@ export class ReaderDataStore {
     for (const entry of entries) {
       const path = normalizeVaultPath(entry.path);
       if (!path || imported.has(path)) continue;
+      const isFreshInstall = !imported.size && !importedCount && !Object.keys(this.data.books).length;
       this.data = mergeReaderData(this.data, entry.value);
+      if (isFreshInstall) {
+        // Take over the earlier install's reader settings, but keep this plugin's own sync folder
+        // so it never shares sync files with the original plugin.
+        this.data.settings = {
+          ...normalizeReaderData(entry.value).settings,
+          syncFolder: this.data.settings.syncFolder,
+        };
+      }
       imported.add(path);
       importedCount += 1;
     }
