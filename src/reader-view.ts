@@ -298,6 +298,57 @@ class HighlightActionsModal extends Modal {
   }
 }
 
+/** Asks only for tags right after a highlight is made from the selection toolbar. */
+class HighlightTagsModal extends Modal {
+  constructor(
+    app: ReaderPluginHost["app"],
+    private readonly highlight: ReaderHighlight,
+    private readonly onSave: (tags: string[]) => Promise<void>,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-highlight-modal");
+    this.titleEl.setText("Add tags");
+    this.contentEl.createDiv({ cls: "omni-book-reader-highlight-quote", text: this.highlight.text });
+    this.contentEl.createDiv({ cls: "omni-book-reader-highlight-chapter", text: this.highlight.chapter });
+    const tagsLabel = this.contentEl.createEl("label", { cls: "omni-book-reader-note-label", text: "Tags" });
+    const tagsInput = tagsLabel.createEl("input", {
+      cls: "omni-book-reader-tags-input",
+      type: "text",
+      attr: { placeholder: "Tags, separated by commas", "aria-label": "Annotation tags" },
+    });
+    tagsInput.value = this.highlight.tags.join(", ");
+    const actions = this.contentEl.createDiv({ cls: "omni-book-reader-modal-actions" });
+    const cancel = actions.createEl("button", { text: "Skip" });
+    const save = actions.createEl("button", { cls: "mod-cta", text: "Save tags" });
+    const submit = (): void => {
+      cancel.disabled = true;
+      save.disabled = true;
+      void this.onSave(parseTags(tagsInput.value)).then(() => this.close(), (error: unknown) => {
+        console.error("[Omni Book Reader] Could not save highlight tags", error);
+        new Notice(error instanceof Error ? error.message : "Could not save the highlight tags");
+        cancel.disabled = false;
+        save.disabled = false;
+      });
+    };
+    cancel.addEventListener("click", () => this.close());
+    save.addEventListener("click", submit);
+    tagsInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        submit();
+      }
+    });
+    window.setTimeout(() => tagsInput.focus(), 0);
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
 class FootnotePreviewModal extends Modal {
   constructor(
     app: ReaderPluginHost["app"],
@@ -797,6 +848,10 @@ export class OmniBookReaderView extends FileView {
     const addNote = iconButton(this.selectionToolbarEl, "notebook-pen", "Highlight and add note");
     addNote.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
       if (highlight) this.openHighlightActions(highlight);
+    }));
+    const addTags = iconButton(this.selectionToolbarEl, "tag", "Highlight and add tags");
+    addTags.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
+      if (highlight) this.openHighlightTags(highlight);
     }));
     const selectionMore = iconButton(this.selectionToolbarEl, "ellipsis", "More selection actions");
     selectionMore.addEventListener("click", (event) => this.openSelectionMenu(event));
@@ -2150,6 +2205,15 @@ export class OmniBookReaderView extends FileView {
       async (edit) => this.saveHighlightEdit(highlight, edit),
       async () => this.deleteHighlight(highlight),
     ).open();
+  }
+
+  private openHighlightTags(highlight: ReaderHighlight): void {
+    new HighlightTagsModal(this.app, highlight, async (tags) => this.saveHighlightEdit(highlight, {
+      note: highlight.note ?? "",
+      color: highlight.color,
+      style: highlight.style,
+      tags,
+    })).open();
   }
 
   private async saveHighlightEdit(highlight: ReaderHighlight, edit: HighlightEdit): Promise<void> {
