@@ -91,9 +91,9 @@ describe("annotation documents", () => {
   it("renders the compact and callout presets with pages and tags", () => {
     const item = highlight({ page: "3", tags: ["quote"], note: "Line one\n\n- Line two" });
     const compact = renderAnnotationDocument("Book", "", [item], { preset: "compact" });
-    expect(compact).toContain("## Chapter 1\n\n- The highlighted source text #quote\n  - Line one\n  - Line two\n  - Page 3 · 2026-07-19");
+    expect(compact).toContain("## Chapter 1\n\n- The highlighted source text #quote\n  - Line one\n    Line two\n  - Page 3 · 2026-07-19");
     const callout = renderAnnotationDocument("Book", "", [item], { preset: "callout" });
-    expect(callout).toContain("> [!quote] Page 3\n> The highlighted source text #quote\n>\n> - Line one\n> - Line two\n>\n> Page 3 · 2026-07-19");
+    expect(callout).toContain("> [!quote] Page 3\n> The highlighted source text #quote\n>\n> - Line one\n>   Line two\n>\n> Page 3 · 2026-07-19");
   });
 
   it("makes file names and tags Obsidian-safe", () => {

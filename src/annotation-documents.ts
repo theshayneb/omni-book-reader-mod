@@ -156,19 +156,18 @@ function entryDetails(highlight: ReaderHighlight, options: AnnotationRenderOptio
     .join(" · ");
 }
 
-/** A highlight's note as a Markdown bullet list, one bullet per non-empty line. */
-export function noteBullets(note: string, indent = ""): string {
-  return note.replace(/\r\n?/g, "\n").split("\n")
+/** A highlight's note as one Markdown bullet; extra lines are indented so they stay inside it. */
+export function noteBullet(note: string, indent = ""): string {
+  const lines = note.replace(/\r\n?/g, "\n").split("\n")
     .map((line) => line.trim().replace(/^[-*+]\s+/, ""))
-    .filter(Boolean)
-    .map((line) => `${indent}- ${line}`)
-    .join("\n");
+    .filter(Boolean);
+  return lines.map((line, index) => `${indent}${index ? "  " : "- "}${line}`).join("\n");
 }
 
 function renderClassicEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
   const lines = [quote(taggedText(highlight.text)), ""];
   const note = highlight.note?.trim();
-  if (note) lines.push(noteBullets(note), "");
+  if (note) lines.push(noteBullet(note), "");
   lines.push(entryDetails(highlight, options));
   return lines.join("\n");
 }
@@ -176,7 +175,7 @@ function renderClassicEntry(highlight: ReaderHighlight, options: AnnotationRende
 function renderCompactEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
   const lines = [`- ${taggedText(singleLine(highlight.text, "(empty excerpt)"))}`];
   const note = highlight.note?.trim();
-  if (note) lines.push(noteBullets(note, "  "));
+  if (note) lines.push(noteBullet(note, "  "));
   lines.push(`  - ${entryDetails(highlight, options)}`);
   return lines.join("\n");
 }
@@ -184,7 +183,7 @@ function renderCompactEntry(highlight: ReaderHighlight, options: AnnotationRende
 function renderCalloutEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
   const lines = [`> [!quote]${highlight.page ? ` ${pageText(highlight)}` : ""}`, quote(taggedText(highlight.text))];
   const note = highlight.note?.trim();
-  if (note) lines.push(">", quote(noteBullets(note)));
+  if (note) lines.push(">", quote(noteBullet(note)));
   lines.push(">", `> ${entryDetails(highlight, options)}`);
   return lines.join("\n");
 }
