@@ -39,4 +39,10 @@ describe("mobile reader sidebar layout", () => {
     expect(savedContent).toContain("min-width: 0");
     expect(panel).toContain("overflow-x: hidden");
   });
+
+  it("keeps the selection toolbar above Obsidian's mobile bottom bar", () => {
+    const toolbar = declarations("body.is-mobile .omni-book-reader-selection-toolbar");
+    expect(toolbar).toContain("var(--mobile-navbar-height, 64px)");
+    expect(toolbar).toContain("env(safe-area-inset-bottom, 0px)");
+  });
 });

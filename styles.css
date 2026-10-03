@@ -1117,6 +1117,11 @@ body.omni-book-reader-immersive-mode {
     transform: translateY(0);
   }
 
+  /* On Obsidian mobile, keep the toolbar above Obsidian's own bottom bar. */
+  body.is-mobile .omni-book-reader-selection-toolbar {
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px) + var(--mobile-navbar-height, 64px));
+  }
+
   .omni-book-reader-color-button {
     width: 44px;
     min-width: 44px;
