@@ -68,9 +68,10 @@ export function toObsidianTag(tag: string): string {
 /** Every highlighted passage ends with this tag in the annotation file. */
 const QUOTE_TAG = "#quote";
 
-/** The highlighted text with `#quote` at the end of its last line. */
-function taggedText(text: string): string {
-  return `${text.replace(/\r\n?/g, "\n").trimEnd()} ${QUOTE_TAG}`;
+/** The highlighted text with `#quote`, then the highlight's own tags, at the end of its last line. */
+function taggedText(text: string, highlight: ReaderHighlight): string {
+  const tags = tagText(highlight);
+  return `${text.replace(/\r\n?/g, "\n").trimEnd()} ${QUOTE_TAG}${tags ? ` ${tags}` : ""}`;
 }
 
 function tagText(highlight: ReaderHighlight): string {
@@ -151,7 +152,7 @@ function sourceLink(highlight: ReaderHighlight, options: AnnotationRenderOptions
 }
 
 function entryDetails(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  return [pageText(highlight), dateStamp(highlight.createdAt), tagText(highlight), sourceLink(highlight, options)]
+  return [pageText(highlight), dateStamp(highlight.createdAt), sourceLink(highlight, options)]
     .filter(Boolean)
     .join(" · ");
 }
@@ -165,7 +166,7 @@ export function noteBullet(note: string, indent = ""): string {
 }
 
 function renderClassicEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [quote(taggedText(highlight.text)), ""];
+  const lines = [quote(taggedText(highlight.text, highlight)), ""];
   const note = highlight.note?.trim();
   if (note) lines.push(noteBullet(note), "");
   lines.push(entryDetails(highlight, options));
@@ -173,7 +174,7 @@ function renderClassicEntry(highlight: ReaderHighlight, options: AnnotationRende
 }
 
 function renderCompactEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [`- ${taggedText(singleLine(highlight.text, "(empty excerpt)"))}`];
+  const lines = [`- ${taggedText(singleLine(highlight.text, "(empty excerpt)"), highlight)}`];
   const note = highlight.note?.trim();
   if (note) lines.push(noteBullet(note, "  "));
   lines.push(`  - ${entryDetails(highlight, options)}`);
@@ -181,7 +182,7 @@ function renderCompactEntry(highlight: ReaderHighlight, options: AnnotationRende
 }
 
 function renderCalloutEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [`> [!quote]${highlight.page ? ` ${pageText(highlight)}` : ""}`, quote(taggedText(highlight.text))];
+  const lines = [`> [!quote]${highlight.page ? ` ${pageText(highlight)}` : ""}`, quote(taggedText(highlight.text, highlight))];
   const note = highlight.note?.trim();
   if (note) lines.push(">", quote(noteBullet(note)));
   lines.push(">", `> ${entryDetails(highlight, options)}`);

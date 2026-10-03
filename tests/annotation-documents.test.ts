@@ -83,7 +83,7 @@ describe("annotation documents", () => {
     expect(markdown.match(/## Chapter 1/g)).toHaveLength(1);
     expect(markdown.indexOf("Early in chapter one")).toBeLessThan(markdown.indexOf("Later in chapter one"));
     expect(markdown).toContain("> Early in chapter one #quote\n\n- My thoughts\n\n2026-07-19");
-    expect(markdown).toContain("> Later in chapter one #quote\n\nPage 14 · 2026-07-19 · #big_idea #archetype · [Open in book](obsidian://omni-book-reader-mod?sourceVault=");
+    expect(markdown).toContain("> Later in chapter one #quote #big_idea #archetype\n\nPage 14 · 2026-07-19 · [Open in book](obsidian://omni-book-reader-mod?sourceVault=");
     expect(markdown).not.toMatch(/Color|#FFD54F|yellow/i);
     expect(markdown).not.toMatch(/[?&]vault=/);
   });
