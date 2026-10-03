@@ -65,8 +65,18 @@ export function toObsidianTag(tag: string): string {
   return body ? `#${body}` : "";
 }
 
+/** Every highlighted passage ends with this tag in the annotation file. */
+const QUOTE_TAG = "#quote";
+
+/** The highlighted text with `#quote` at the end of its last line. */
+function taggedText(text: string): string {
+  return `${text.replace(/\r\n?/g, "\n").trimEnd()} ${QUOTE_TAG}`;
+}
+
 function tagText(highlight: ReaderHighlight): string {
-  return Array.from(new Set(highlight.tags.map(toObsidianTag).filter(Boolean))).join(" ");
+  const tags = new Set(highlight.tags.map(toObsidianTag).filter(Boolean));
+  tags.delete(QUOTE_TAG);
+  return Array.from(tags).join(" ");
 }
 
 function pageText(highlight: ReaderHighlight): string {
@@ -146,26 +156,35 @@ function entryDetails(highlight: ReaderHighlight, options: AnnotationRenderOptio
     .join(" · ");
 }
 
+/** A highlight's note as a Markdown bullet list, one bullet per non-empty line. */
+export function noteBullets(note: string, indent = ""): string {
+  return note.replace(/\r\n?/g, "\n").split("\n")
+    .map((line) => line.trim().replace(/^[-*+]\s+/, ""))
+    .filter(Boolean)
+    .map((line) => `${indent}- ${line}`)
+    .join("\n");
+}
+
 function renderClassicEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [quote(highlight.text), ""];
+  const lines = [quote(taggedText(highlight.text)), ""];
   const note = highlight.note?.trim();
-  if (note) lines.push(`**Note:** ${note}`, "");
+  if (note) lines.push(noteBullets(note), "");
   lines.push(entryDetails(highlight, options));
   return lines.join("\n");
 }
 
 function renderCompactEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [`- ${singleLine(highlight.text, "(empty excerpt)")}`];
+  const lines = [`- ${taggedText(singleLine(highlight.text, "(empty excerpt)"))}`];
   const note = highlight.note?.trim();
-  if (note) lines.push(`  - **Note:** ${singleLine(note)}`);
+  if (note) lines.push(noteBullets(note, "  "));
   lines.push(`  - ${entryDetails(highlight, options)}`);
   return lines.join("\n");
 }
 
 function renderCalloutEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [`> [!quote]${highlight.page ? ` ${pageText(highlight)}` : ""}`, quote(highlight.text)];
+  const lines = [`> [!quote]${highlight.page ? ` ${pageText(highlight)}` : ""}`, quote(taggedText(highlight.text))];
   const note = highlight.note?.trim();
-  if (note) lines.push(">", quote(`**Note:** ${note}`));
+  if (note) lines.push(">", quote(noteBullets(note)));
   lines.push(">", `> ${entryDetails(highlight, options)}`);
   return lines.join("\n");
 }

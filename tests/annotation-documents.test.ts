@@ -82,18 +82,18 @@ describe("annotation documents", () => {
     expect(markdown.indexOf("## Chapter 1")).toBeLessThan(markdown.indexOf("## Chapter 2"));
     expect(markdown.match(/## Chapter 1/g)).toHaveLength(1);
     expect(markdown.indexOf("Early in chapter one")).toBeLessThan(markdown.indexOf("Later in chapter one"));
-    expect(markdown).toContain("> Early in chapter one\n\n**Note:** My thoughts");
-    expect(markdown).toContain("> Later in chapter one\n\nPage 14 · 2026-07-19 · #big_idea #archetype · [Open in book](obsidian://omni-book-reader-mod?sourceVault=");
+    expect(markdown).toContain("> Early in chapter one #quote\n\n- My thoughts\n\n2026-07-19");
+    expect(markdown).toContain("> Later in chapter one #quote\n\nPage 14 · 2026-07-19 · #big_idea #archetype · [Open in book](obsidian://omni-book-reader-mod?sourceVault=");
     expect(markdown).not.toMatch(/Color|#FFD54F|yellow/i);
     expect(markdown).not.toMatch(/[?&]vault=/);
   });
 
   it("renders the compact and callout presets with pages and tags", () => {
-    const item = highlight({ page: "3", tags: ["quote"], note: "Line one" });
+    const item = highlight({ page: "3", tags: ["quote"], note: "Line one\n\n- Line two" });
     const compact = renderAnnotationDocument("Book", "", [item], { preset: "compact" });
-    expect(compact).toContain("## Chapter 1\n\n- The highlighted source text\n  - **Note:** Line one\n  - Page 3 · 2026-07-19 · #quote");
+    expect(compact).toContain("## Chapter 1\n\n- The highlighted source text #quote\n  - Line one\n  - Line two\n  - Page 3 · 2026-07-19");
     const callout = renderAnnotationDocument("Book", "", [item], { preset: "callout" });
-    expect(callout).toContain("> [!quote] Page 3\n> The highlighted source text\n>\n> **Note:** Line one\n>\n> Page 3 · 2026-07-19 · #quote");
+    expect(callout).toContain("> [!quote] Page 3\n> The highlighted source text #quote\n>\n> - Line one\n> - Line two\n>\n> Page 3 · 2026-07-19");
   });
 
   it("makes file names and tags Obsidian-safe", () => {
@@ -157,7 +157,7 @@ describe("annotation documents", () => {
     await service.sync(input);
     expect(vault.create).toHaveBeenCalledTimes(1);
     expect(vault.modify).toHaveBeenCalledTimes(1);
-    expect(entries.get(documentPath)?.content).toContain("**Note:** A note added later");
+    expect(entries.get(documentPath)?.content).toContain("- A note added later");
     expect(trash).not.toHaveBeenCalled();
 
     const document = entries.get(documentPath)!;
