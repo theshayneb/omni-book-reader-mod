@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AnnotationDocumentService,
   annotationFileName,
+  bookNoteLink,
   buildCfiLink,
   mergeManagedDocument,
   renderAnnotationDocument,
@@ -77,7 +78,7 @@ describe("annotation documents", () => {
       highlight({ id: "a", cfi: "epubcfi(/6/2!/4/2:0)", text: "Early in chapter one", note: "My thoughts", noteUpdatedAt: createdAt, createdAt: createdAt + 5 }),
     ], options);
 
-    expect(markdown).toContain("# Test Book\n\n*Test Author*");
+    expect(markdown).toContain("# [[Test Book]] by Test Author\n\n## Chapter 1");
     expect(markdown.indexOf("## Chapter 1")).toBeLessThan(markdown.indexOf("## Chapter 2"));
     expect(markdown.match(/## Chapter 1/g)).toHaveLength(1);
     expect(markdown.indexOf("Early in chapter one")).toBeLessThan(markdown.indexOf("Later in chapter one"));
@@ -149,7 +150,7 @@ describe("annotation documents", () => {
 
     await service.sync(input);
     expect(state.annotationDocuments).toMatchObject({ highlightPath: documentPath, notePath: documentPath });
-    expect(entries.get(documentPath)?.content).toMatch(/^---\ntags:\n {2}- book_notes\n---\n<!-- omni-book-reader:annotations:start -->\n# Test Book/);
+    expect(entries.get(documentPath)?.content).toMatch(/^---\ntags:\n {2}- book_notes\n---\n<!-- omni-book-reader:annotations:start -->\n# \[\[Test Book\]\] by Test Author/);
 
     state.highlights[0]!.note = "A note added later";
     await service.sync(input);
@@ -205,5 +206,12 @@ describe("annotation documents", () => {
     await expect(service.sync({ sourceFile, state, title: "Test Book", author: "" })).rejects.toThrow("path is not a file");
     expect(trash).not.toHaveBeenCalled();
     expect(state.annotationDocuments).toBe(previous);
+  });
+
+  it("links the heading to the book note named like the EPUB", () => {
+    expect(bookNoteLink("Dune", "Books/Dune.epub")).toBe("[[Dune]]");
+    expect(bookNoteLink("Dune: Messiah", "Books/Dune Messiah (1969).epub")).toBe("[[Dune Messiah (1969)|Dune: Messiah]]");
+    expect(bookNoteLink("Plain", undefined)).toBe("Plain");
+    expect(renderAnnotationDocument("Dune", "", [], { sourcePath: "Books/Dune.epub" })).toMatch(/^# \[\[Dune\]\]\n/);
   });
 });

@@ -190,6 +190,18 @@ function applyDocumentTemplate(template: string, variables: Record<string, strin
   return `${output.trim() || variables.entries}\n`;
 }
 
+/**
+ * Wikilink to the book's own note: the Markdown file named like the EPUB (`Dune.epub` → `[[Dune]]`),
+ * shown with the EPUB title when that differs. Falls back to plain text without a source path.
+ */
+export function bookNoteLink(title: string, sourcePath?: string): string {
+  const fileName = normalizePath(sourcePath ?? "").split("/").pop() ?? "";
+  const noteName = fileName.replace(/\.epub$/i, "").replace(/[[\]|#^]/g, "").trim();
+  const label = title.replace(/[[\]|]/g, "").trim();
+  if (!noteName) return label;
+  return label && label !== noteName ? `[[${noteName}|${label}]]` : `[[${noteName}]]`;
+}
+
 /** Renders the managed part of a book's annotation file: every highlight, with its note, grouped by chapter. */
 export function renderAnnotationDocument(
   title: string,
@@ -200,9 +212,9 @@ export function renderAnnotationDocument(
   const bookTitle = singleLine(title, "Untitled book");
   const entries = renderEntries(highlights, options);
   const normalizedAuthor = singleLine(author);
+  const bookLink = bookNoteLink(bookTitle, options.sourcePath);
   const builtIn = [
-    `# ${bookTitle}`,
-    ...(normalizedAuthor ? ["", `*${normalizedAuthor}*`] : []),
+    `# ${bookLink}${normalizedAuthor ? ` by ${normalizedAuthor}` : ""}`,
     "",
     entries,
   ].join("\n");
@@ -212,6 +224,7 @@ export function renderAnnotationDocument(
     "document.kind": "annotations",
     "book.title": bookTitle,
     "book.author": normalizedAuthor,
+    "book.link": bookLink,
     "book.filePath": normalizePath(options.sourcePath ?? ""),
     "export.date": dateStamp(options.exportedAt ?? Date.now()),
     entries,

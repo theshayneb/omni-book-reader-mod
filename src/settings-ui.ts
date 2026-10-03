@@ -199,7 +199,7 @@ function renderSettings(
 
   new Setting(container)
     .setName("Custom export template")
-    .setDesc("Used when Custom template is selected. Enter a Markdown path in the vault. Supports {{document.title}}, {{document.kind}}, {{book.title}}, {{book.author}}, {{book.filePath}}, {{export.date}}, and {{entries}}.")
+    .setDesc("Used when Custom template is selected. Enter a Markdown path in the vault. Supports {{document.title}}, {{document.kind}}, {{book.title}}, {{book.author}}, {{book.filePath}}, {{book.link}}, {{export.date}}, and {{entries}}.")
     .addText((text) => text
       .setPlaceholder("Templates/EPUB annotation export.md")
       .setValue(get().customExportTemplatePath)
@@ -426,7 +426,7 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
           },
           {
             name: "Custom export template",
-            desc: "Used when Custom template is selected. Enter a Markdown path in the vault. Supports {{document.title}}, {{document.kind}}, {{book.title}}, {{book.author}}, {{book.filePath}}, {{export.date}}, and {{entries}}.",
+            desc: "Used when Custom template is selected. Enter a Markdown path in the vault. Supports {{document.title}}, {{document.kind}}, {{book.title}}, {{book.author}}, {{book.filePath}}, {{book.link}}, {{export.date}}, and {{entries}}.",
             control: {
               type: "text",
               key: "customExportTemplatePath",
