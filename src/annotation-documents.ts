@@ -191,15 +191,13 @@ function applyDocumentTemplate(template: string, variables: Record<string, strin
 }
 
 /**
- * Wikilink to the book's own note: the Markdown file named like the EPUB (`Dune.epub` → `[[Dune]]`),
- * shown with the EPUB title when that differs. Falls back to plain text without a source path.
+ * Wikilink to the book's own note, the Markdown file named like the EPUB
+ * (`Dune - Frank Herbert.epub` → `[[Dune - Frank Herbert]]`). Falls back to the title without a source path.
  */
 export function bookNoteLink(title: string, sourcePath?: string): string {
   const fileName = normalizePath(sourcePath ?? "").split("/").pop() ?? "";
   const noteName = fileName.replace(/\.epub$/i, "").replace(/[[\]|#^]/g, "").trim();
-  const label = title.replace(/[[\]|]/g, "").trim();
-  if (!noteName) return label;
-  return label && label !== noteName ? `[[${noteName}|${label}]]` : `[[${noteName}]]`;
+  return noteName ? `[[${noteName}]]` : title;
 }
 
 /** Renders the managed part of a book's annotation file: every highlight, with its note, grouped by chapter. */
@@ -214,7 +212,7 @@ export function renderAnnotationDocument(
   const normalizedAuthor = singleLine(author);
   const bookLink = bookNoteLink(bookTitle, options.sourcePath);
   const builtIn = [
-    `# ${bookLink}${normalizedAuthor ? ` by ${normalizedAuthor}` : ""}`,
+    `# ${bookLink}`,
     "",
     entries,
   ].join("\n");
