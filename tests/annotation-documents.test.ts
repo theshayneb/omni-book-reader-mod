@@ -62,7 +62,7 @@ function memoryVault() {
 }
 
 const sourceFile = { path: "Books/Test Book.epub", basename: "Test Book" } as TFile;
-const documentPath = "Media/Books/Attachments/Test Book.md";
+const documentPath = "Media/Books/Attachments/Test Book-Notes.md";
 
 function bookState(highlights: ReaderHighlight[]): BookState {
   return { sourceSignature: { size: 1, mtime: 1 }, bookmarks: [], highlights };
