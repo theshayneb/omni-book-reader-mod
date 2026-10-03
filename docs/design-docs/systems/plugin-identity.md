@@ -10,7 +10,7 @@ This fork used the original plugin's id, `omni-book-reader`, so Obsidian treated
 ## Decision
 
 - `manifest.json` id `omni-book-reader-mod`, name "Omni Book Reader Mod". Obsidian stores its files and `data.json` in `.obsidian/plugins/omni-book-reader-mod/`.
-- Own view types (`omni-book-reader-mod-view`, `omni-book-reader-mod-bookshelf-view`), `obsidian://omni-book-reader-mod` links, sync folder default `Omni Book Reader Mod/Sync`, sync format `omni-book-reader-mod-sync`, and device-id key.
+- Own view types (`omni-book-reader-mod-view`, `omni-book-reader-mod-bookshelf-view`), `obsidian://omni-book-reader-mod` links, sync folder default `Utilities/Omni Book Reader Mod/Sync`, sync format `omni-book-reader-mod-sync`, and device-id key.
 - On startup, data from any plugin folder whose manifest id is `omni-book-reader` (`ORIGINAL_PLUGIN_ID`) is imported once, like the existing recovery from earlier plugin folders. On a fresh install, the first imported data also supplies the reader settings, except the sync folder.
 - Old `obsidian://omni-book-reader?` links still open inside Obsidian (the click handler accepts both), and links in annotation files are rewritten to the new action at startup. The protocol handler only registers the new action, so it never conflicts with the original plugin.
 

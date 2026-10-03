@@ -198,7 +198,7 @@ describe("reader data store", () => {
     await store.load();
     const original = { settings: { theme: "sepia", exportTemplate: "callout", syncFolder: "Omni Book Reader/Sync" }, books: {} };
     expect(store.mergeLegacyData([{ path: ".obsidian/plugins/omni-book-reader/data.json", value: original }])).toBe(1);
-    expect(store.settings).toMatchObject({ theme: "sepia", exportTemplate: "callout", syncFolder: "Omni Book Reader Mod/Sync" });
+    expect(store.settings).toMatchObject({ theme: "sepia", exportTemplate: "callout", syncFolder: "Utilities/Omni Book Reader Mod/Sync" });
 
     const other = { settings: { theme: "dark" }, books: {} };
     store.mergeLegacyData([{ path: ".obsidian/plugins/another-copy/data.json", value: other }]);

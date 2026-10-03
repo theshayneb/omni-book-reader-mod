@@ -15,7 +15,7 @@ Syncing `data.json` itself is unreliable:
 
 ## Decision
 
-Sync reading data through per-device files in a vault folder (setting `syncFolder`, default `Omni Book Reader Mod/Sync`; toggle `syncEnabled`, default on).
+Sync reading data through per-device files in a vault folder (setting `syncFolder`, default `Utilities/Omni Book Reader Mod/Sync`; toggle `syncEnabled`, default on).
 
 - Each device has a random 16-hex-character ID kept in Obsidian's per-device local storage (`app.loadLocalStorage`), never in synced data.
 - Each device writes only `<syncFolder>/<deviceId>.json`. Because every file has exactly one writer, a file sync service never has to resolve conflicting edits, so "last modified wins" is always correct.
