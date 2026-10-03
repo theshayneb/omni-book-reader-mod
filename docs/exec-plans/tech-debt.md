@@ -4,12 +4,22 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ## Open items
 
+### TD-2026-005: Foliate srcdoc test fails intermittently under full-suite load
+
+- Status: Open
+- Area: tests (`tests/foliate-runtime-patches.test.ts`, "loads a revoked Foliate chapter Blob through normalized iframe srcdoc")
+- Introduced: seen 2026-10-03 during the 1.1.4 and 1.1.8 releases
+- Impact: `npm run verify:full` occasionally fails with `expected '' to contain 'Android chapter'`; the test passes when run alone and on a re-run
+- Reason accepted: unrelated to the annotation changes being released; plugin code it covers was not changed
+- Exit criteria: the test waits for the iframe content deterministically instead of depending on timing
+- Owner/trigger: fix if it fails in the release workflow
+
 ### TD-2026-004: Books with the same title share one annotation file
 
 - Status: Open
 - Area: annotation documents
 - Introduced: 2026-10-03, `docs/exec-plans/completed/single-annotation-file.md`
-- Impact: two different EPUBs whose metadata titles clean up to the same file name write to the same `Media/Books/Attachments/<title>-Notes.md`, and each overwrites the other's managed block
+- Impact: two different EPUBs whose metadata titles clean up to the same file name write to the same `Media/Books/Attachments/<title> Notes.md`, and each overwrites the other's managed block
 - Reason accepted: the file must be named after the book note, which is named by title; the owner does not keep duplicate titles
 - Exit criteria: detect a managed block written for a different EPUB and pick a distinct name
 - Owner/trigger: address if two editions of the same book are read in one vault

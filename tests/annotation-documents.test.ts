@@ -63,7 +63,7 @@ function memoryVault() {
 }
 
 const sourceFile = { path: "Books/Test Book.epub", basename: "Test Book" } as TFile;
-const documentPath = "Media/Books/Attachments/Test Book-Notes.md";
+const documentPath = "Media/Books/Attachments/Test Book Notes.md";
 
 function bookState(highlights: ReaderHighlight[]): BookState {
   return { sourceSignature: { size: 1, mtime: 1 }, bookmarks: [], highlights };
@@ -191,6 +191,22 @@ describe("annotation documents", () => {
     state.annotationDocuments = { highlightPath: oldHighlights, notePath: oldNotes, createdDate: "2026-07-19" };
     await service.sync({ sourceFile, state, title: "Test Book", author: "" });
     expect(entries.get(documentPath)?.content?.match(/My own summary/g)).toHaveLength(1);
+  });
+
+  it("renames a file from the earlier <title>-Notes.md name, keeping its user text", async () => {
+    const { entries, typedVault, trash, addFile } = memoryVault();
+    const earlier = "Media/Books/Attachments/Test Book-Notes.md";
+    addFile(earlier, "---\ntags:\n  - book_notes\n---\n<!-- omni-book-reader:annotations:start -->\n# Old\n<!-- omni-book-reader:annotations:end -->\n\nMy summary\n");
+    const state = bookState([highlight()]);
+    state.annotationDocuments = { highlightPath: earlier, notePath: earlier, createdDate: "2026-10-03" };
+    const service = new AnnotationDocumentService(typedVault, trash);
+
+    await service.sync({ sourceFile, state, title: "Test Book", author: "" });
+
+    expect(documentPath).toBe("Media/Books/Attachments/Test Book Notes.md");
+    expect(entries.get(documentPath)?.content).toContain("omni-book-reader:annotations:end -->\n\nMy summary\n");
+    expect(trash.mock.calls.map(([file]) => file.path)).toEqual([earlier]);
+    expect(state.annotationDocuments?.highlightPath).toBe(documentPath);
   });
 
   it("keeps the old files when the new file cannot be written", async () => {

@@ -64,7 +64,7 @@ Physical left/right input is not the same as logical previous/next content in RT
 ### Export annotations and chapters
 
 1. The reader gathers book metadata, CFIs, annotations, and content.
-2. Export services render Markdown and copy required media into the Vault. Highlights and notes go to one file per book at `Media/Books/Attachments/<book title>-Notes.md`; see [`docs/design-docs/systems/annotation-documents.md`](docs/design-docs/systems/annotation-documents.md).
+2. Export services render Markdown and copy required media into the Vault. Highlights and notes go to one file per book at `Media/Books/Attachments/<book title> Notes.md`; see [`docs/design-docs/systems/annotation-documents.md`](docs/design-docs/systems/annotation-documents.md).
 3. Generated content is constrained by `omni-book-reader` managed-block markers.
 4. Existing user-authored content outside managed blocks is preserved, and unchanged exports are not rewritten.
 

@@ -10,7 +10,7 @@ import type {
 
 const LEGACY_GENERATED_MARKER = "<!-- omni-book-reader:generated -->";
 
-/** Every book's highlights and notes are kept in one file, `<title>-Notes.md`, in this vault folder. */
+/** Every book's highlights and notes are kept in one file, `<title> Notes.md`, in this vault folder. */
 export const ANNOTATION_FOLDER = "Media/Books/Attachments";
 
 const FRONTMATTER = "---\ntags:\n  - book_notes\n---\n";
@@ -98,7 +98,7 @@ export function annotationFileName(title: string, fallback: string): string {
 }
 
 export function annotationDocumentPath(title: string, sourceFile: TFile): string {
-  return normalizePath(`${ANNOTATION_FOLDER}/${annotationFileName(title, sourceFile.basename)}-Notes.md`);
+  return normalizePath(`${ANNOTATION_FOLDER}/${annotationFileName(title, sourceFile.basename)} Notes.md`);
 }
 
 function comparePosition(left: ReaderHighlight, right: ReaderHighlight): number {

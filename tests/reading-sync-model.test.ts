@@ -200,7 +200,7 @@ describe("reading sync model", () => {
 
   it("prefers the single annotation file over an older highlight/note pair in any merge order", () => {
     const pair = { ...emptySyncedBook(), annotationDocuments: { highlightPath: "Books/a/a-Highlight-2026-01-01.md", notePath: "Books/a/a-Note-2026-01-01.md", createdDate: "2026-01-01" } };
-    const single = { ...emptySyncedBook(), annotationDocuments: { highlightPath: "Media/Books/Attachments/A-Notes.md", notePath: "Media/Books/Attachments/A-Notes.md", createdDate: "2026-01-01" } };
+    const single = { ...emptySyncedBook(), annotationDocuments: { highlightPath: "Media/Books/Attachments/A Notes.md", notePath: "Media/Books/Attachments/A Notes.md", createdDate: "2026-01-01" } };
 
     expect(mergeSyncedBooks(pair, single).annotationDocuments).toEqual(single.annotationDocuments);
     expect(mergeSyncedBooks(single, pair).annotationDocuments).toEqual(single.annotationDocuments);
