@@ -1,4 +1,4 @@
-# One highlights-and-notes file per book (1.1.1)
+# One highlights-and-notes file per book (1.1.3)
 
 ## Scope
 
