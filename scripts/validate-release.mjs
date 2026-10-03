@@ -33,12 +33,16 @@ if (versions[manifestVersion] !== manifest.minAppVersion) {
   );
 }
 
-if (process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_REF_TYPE !== "tag") {
-  throw new Error("GitHub releases must be triggered by a version tag.");
+// The release workflow names the tag it will publish in RELEASE_TAG; a tag push uses its own name.
+const releaseTag = process.env.RELEASE_TAG
+  || (process.env.GITHUB_REF_TYPE === "tag" ? process.env.GITHUB_REF_NAME : undefined);
+
+if (process.env.GITHUB_ACTIONS === "true" && !releaseTag) {
+  throw new Error("GitHub releases must name the version tag they publish.");
 }
 
-if (process.env.GITHUB_REF_TYPE === "tag") {
-  const tag = process.env.GITHUB_REF_NAME;
+if (releaseTag) {
+  const tag = releaseTag;
   if (tag !== manifestVersion) {
     throw new Error(
       `Release tag ${tag ?? "<missing>"} must match manifest version ${manifestVersion}.`,

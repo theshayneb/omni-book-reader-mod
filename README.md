@@ -66,10 +66,9 @@ The generated `main.js` is not committed; GitHub Actions builds it and attaches 
 
 ## Release process
 
-1. Update the same semantic version in `manifest.json` and `package.json`.
+1. Update the same semantic version in `manifest.json`, `package.json` and `package-lock.json`, and add it to `versions.json`.
 2. Run `npm run release:check`.
-3. Commit, push, then create and push a matching tag such as `0.6.1`.
-4. GitHub Actions validates the build and publishes the three plugin files as a GitHub Release.
+3. Commit and push to `main`. If that version has no tag yet, GitHub Actions validates the build, creates the tag, and publishes the three plugin files as a GitHub Release. (Pushing a matching tag such as `1.2.0` yourself also works.)
 
 For a local manual install, copy those three files into `<vault>/.obsidian/plugins/omni-book-reader-mod/`, then reload the plugin in Obsidian.
 
