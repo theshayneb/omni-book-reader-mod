@@ -71,6 +71,8 @@ export interface ReaderHighlight {
   tags: string[];
   sectionIndex: number;
   createdAt: number;
+  /** Page label shown in the reader when the highlight was made; absent for older highlights. */
+  page?: string;
   note?: string;
   noteUpdatedAt?: number;
   stale?: boolean;

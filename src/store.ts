@@ -75,6 +75,9 @@ function normalizeHighlight(value: unknown): ReaderHighlight | null {
     tags,
     sectionIndex: Math.max(0, Math.round(finite(input.sectionIndex))),
     createdAt: finite(input.createdAt, Date.now()),
+    page: typeof input.page === "string" && input.page.trim()
+      ? input.page.trim().slice(0, 50)
+      : undefined,
     note: typeof input.note === "string" && input.note.trim()
       ? input.note.trim().slice(0, 20000)
       : undefined,

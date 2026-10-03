@@ -1,11 +1,13 @@
-import type { TFile, Vault } from "obsidian";
+import type { TAbstractFile, TFile, Vault } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import {
   AnnotationDocumentService,
+  annotationFileName,
   buildCfiLink,
   mergeManagedDocument,
-  renderHighlightDocument,
-  renderNoteDocument,
+  renderAnnotationDocument,
+  toObsidianTag,
+  userContent,
 } from "../src/annotation-documents";
 import type { BookState, ReaderHighlight } from "../src/types";
 
@@ -26,70 +28,111 @@ function highlight(overrides: Partial<ReaderHighlight> = {}): ReaderHighlight {
   };
 }
 
-describe("annotation documents", () => {
-  it("renders separate highlight and note documents in the expected readable format", () => {
-    const item = highlight({ note: "My thoughts", noteUpdatedAt: createdAt, tags: ["archetype"] });
-    const options = { sourcePath: "Books/Test Book.epub", vaultName: "Test Vault" };
-    const highlights = renderHighlightDocument("Test Book", "Test Author", [item], options);
-    const notes = renderNoteDocument("Test Book", "Test Author", [item], options);
+type Entry = { path: string; extension?: string; content?: string; children?: Entry[] };
 
-    expect(highlights).toContain("# Omni Book Reader - Highlights");
-    expect(highlights).toContain("### Chapter 1\n\n> The highlighted source text");
-    expect(highlights).not.toContain("My thoughts");
-    expect(notes).toContain("# Omni Book Reader - Notes");
-    expect(notes).toContain("**Note:** My thoughts");
-    expect(notes).toContain("Date: 2026-07-19 | Color: #FFD54F | Style: Highlight | Tags: archetype");
-    expect(notes).toContain("obsidian://omni-book-reader?sourceVault=");
-    expect(notes).not.toMatch(/[?&]vault=/);
+function memoryVault() {
+  const entries = new Map<string, Entry>();
+  const parent = (path: string) => entries.get(path.slice(0, Math.max(0, path.lastIndexOf("/"))));
+  const vault = {
+    getAbstractFileByPath: vi.fn((path: string) => entries.get(path) ?? null),
+    createFolder: vi.fn(async (path: string) => { entries.set(path, { path, children: [] }); }),
+    create: vi.fn(async (path: string, content: string) => {
+      const file = { path, extension: "md", content };
+      entries.set(path, file);
+      parent(path)?.children?.push(file);
+      return file;
+    }),
+    modify: vi.fn(async (file: Entry, content: string) => { file.content = content; }),
+    cachedRead: vi.fn(async (file: Entry) => file.content ?? ""),
+    getName: vi.fn(() => "Test Vault"),
+  };
+  const trash = vi.fn(async (file: TAbstractFile) => {
+    entries.delete(file.path);
+    const folder = parent(file.path);
+    if (folder?.children) folder.children = folder.children.filter((child) => child.path !== file.path);
+  });
+  const addFile = (path: string, content: string) => {
+    const folderPath = path.slice(0, path.lastIndexOf("/"));
+    if (!entries.has(folderPath)) entries.set(folderPath, { path: folderPath, children: [] });
+    const file = { path, extension: "md", content };
+    entries.set(path, file);
+    entries.get(folderPath)!.children!.push(file);
+  };
+  return { entries, vault, typedVault: vault as unknown as Vault, trash, addFile };
+}
+
+const sourceFile = { path: "Books/Test Book.epub", basename: "Test Book" } as TFile;
+const documentPath = "Media/Books/Attachments/Test Book.md";
+
+function bookState(highlights: ReaderHighlight[]): BookState {
+  return { sourceSignature: { size: 1, mtime: 1 }, bookmarks: [], highlights };
+}
+
+describe("annotation documents", () => {
+  it("renders highlights and notes together, grouped by chapter in book order", () => {
+    const options = { sourcePath: "Books/Test Book.epub", vaultName: "Test Vault" };
+    const markdown = renderAnnotationDocument("Test Book", "Test Author", [
+      highlight({ id: "late", cfi: "epubcfi(/6/4!/4/2:0)", sectionIndex: 1, chapter: "Chapter 2", text: "Second chapter", createdAt: 1 }),
+      highlight({ id: "b", cfi: "epubcfi(/6/2!/4/8:0)", text: "Later in chapter one", page: "14", tags: ["big idea", "#archetype"] }),
+      highlight({ id: "a", cfi: "epubcfi(/6/2!/4/2:0)", text: "Early in chapter one", note: "My thoughts", noteUpdatedAt: createdAt, createdAt: createdAt + 5 }),
+    ], options);
+
+    expect(markdown).toContain("# Test Book\n\n*Test Author*");
+    expect(markdown.indexOf("## Chapter 1")).toBeLessThan(markdown.indexOf("## Chapter 2"));
+    expect(markdown.match(/## Chapter 1/g)).toHaveLength(1);
+    expect(markdown.indexOf("Early in chapter one")).toBeLessThan(markdown.indexOf("Later in chapter one"));
+    expect(markdown).toContain("> Early in chapter one\n\n**Note:** My thoughts");
+    expect(markdown).toContain("> Later in chapter one\n\nPage 14 · 2026-07-19 · #big_idea #archetype · [Open in book](obsidian://omni-book-reader?sourceVault=");
+    expect(markdown).not.toMatch(/Color|#FFD54F|yellow/i);
+    expect(markdown).not.toMatch(/[?&]vault=/);
+  });
+
+  it("renders the compact and callout presets with pages and tags", () => {
+    const item = highlight({ page: "3", tags: ["quote"], note: "Line one" });
+    const compact = renderAnnotationDocument("Book", "", [item], { preset: "compact" });
+    expect(compact).toContain("## Chapter 1\n\n- The highlighted source text\n  - **Note:** Line one\n  - Page 3 · 2026-07-19 · #quote");
+    const callout = renderAnnotationDocument("Book", "", [item], { preset: "callout" });
+    expect(callout).toContain("> [!quote] Page 3\n> The highlighted source text\n>\n> **Note:** Line one\n>\n> Page 3 · 2026-07-19 · #quote");
+  });
+
+  it("makes file names and tags Obsidian-safe", () => {
+    expect(annotationFileName("Dune: Messiah / Part #1?", "fallback")).toBe("Dune Messiah Part 1");
+    expect(annotationFileName("  ", "Test Book")).toBe("Test Book");
+    expect(toObsidianTag("big idea!")).toBe("#big_idea");
+    expect(toObsidianTag("#already/nested")).toBe("#already/nested");
+    expect(toObsidianTag("!!!")).toBe("");
   });
 
   it("preserves manual text outside managed blocks and supports custom templates", () => {
-    const generated = renderHighlightDocument("Test Book", "Author", [highlight()], {
+    const generated = renderAnnotationDocument("Test Book", "Author", [highlight()], {
       sourcePath: "Books/Test Book.epub",
       vaultName: "Vault",
       customTemplate: "# {{book.title}}\nExported: {{export.date}}\n\n{{entries}}",
       exportedAt: createdAt,
     });
-    const first = mergeManagedDocument("# My handwritten summary\n", "highlights", generated);
+    const first = mergeManagedDocument("# My handwritten summary\n", "annotations", generated);
     const withManualSuffix = `${first}\n## My conclusion\nWill not be overwritten by the plugin\n`;
-    const second = mergeManagedDocument(withManualSuffix, "highlights", generated.replace("The highlighted source text", "The updated excerpt"));
+    const second = mergeManagedDocument(withManualSuffix, "annotations", generated.replace("The highlighted source text", "The updated excerpt"));
     expect(second).toContain("# My handwritten summary");
     expect(second).toContain("The updated excerpt");
     expect(second).toContain("## My conclusion\nWill not be overwritten by the plugin");
     expect(second).not.toContain("The highlighted source text");
-    expect(second.match(/omni-book-reader:highlights:start/g)).toHaveLength(1);
-    expect(generated).toContain("# Test Book");
+    expect(second.match(/omni-book-reader:annotations:start/g)).toHaveLength(1);
     expect(generated).toContain("Exported: 2026-07-19");
+    expect(userContent(second)).toBe("# My handwritten summary\n\n## My conclusion\nWill not be overwritten by the plugin");
     const cfiLink = buildCfiLink("Vault", "Books/Test Book.epub", highlight().cfi);
     expect(cfiLink).toContain("sourceVault=Vault");
-    expect(cfiLink).not.toMatch(/[?&]vault=/);
     expect(cfiLink).toContain("cfi=epubcfi%28");
-    expect(() => mergeManagedDocument("<!-- omni-book-reader:highlights:start -->\ncorrupted", "highlights", generated))
+    expect(() => mergeManagedDocument("<!-- omni-book-reader:annotations:start -->\ncorrupted", "annotations", generated))
       .toThrow("managed-block markers in the annotation document are incomplete");
   });
 
   it("does not resolve a stale custom template path while an internal preset is selected", async () => {
-    const entries = new Map<string, { path: string; extension?: string; content?: string }>();
-    const vault = {
-      getAbstractFileByPath: vi.fn((path: string) => entries.get(path) ?? null),
-      createFolder: vi.fn(async (path: string) => { entries.set(path, { path }); }),
-      create: vi.fn(async (path: string, content: string) => {
-        entries.set(path, { path, extension: "md", content });
-      }),
-      modify: vi.fn(),
-      cachedRead: vi.fn(),
-      getName: vi.fn(() => "Test Vault"),
-    } as unknown as Vault;
-    const service = new AnnotationDocumentService(vault);
-    const state: BookState = {
-      sourceSignature: { size: 1, mtime: 1 },
-      bookmarks: [],
-      highlights: [highlight()],
-    };
-
+    const { typedVault, vault, trash } = memoryVault();
+    const service = new AnnotationDocumentService(typedVault, trash);
     await expect(service.sync({
-      sourceFile: { path: "Books/Test Book.epub", basename: "Test Book" } as TFile,
-      state,
+      sourceFile,
+      state: bookState([highlight()]),
       title: "Test Book",
       author: "Test Author",
       exportTemplate: "classic",
@@ -98,77 +141,67 @@ describe("annotation documents", () => {
     expect(vault.cachedRead).not.toHaveBeenCalled();
   });
 
-  it("creates and then maintains one document pair beside the EPUB", async () => {
-    const entries = new Map<string, { path: string; extension?: string; content?: string }>();
-    const vault = {
-      getAbstractFileByPath: vi.fn((path: string) => entries.get(path) ?? null),
-      createFolder: vi.fn(async (path: string) => { entries.set(path, { path }); }),
-      create: vi.fn(async (path: string, content: string) => {
-        const file = { path, extension: "md", content };
-        entries.set(path, file);
-        return file;
-      }),
-      modify: vi.fn(async (file: { path: string; content?: string }, content: string) => {
-        file.content = content;
-      }),
-      cachedRead: vi.fn(async (file: { content?: string }) => file.content ?? ""),
-      getName: vi.fn(() => "Test Vault"),
-    } as unknown as Vault;
-    const state: BookState = {
-      sourceSignature: { size: 1, mtime: 1 },
-      bookmarks: [],
-      highlights: [highlight()],
-    };
-    const service = new AnnotationDocumentService(vault);
-    const sourceFile = {
-      path: "Literature notes/Reading notes/Test Book.epub",
-      basename: "Test Book",
-    } as TFile;
+  it("creates one file per book named after the EPUB title, with book_notes frontmatter", async () => {
+    const { entries, vault, typedVault, trash } = memoryVault();
+    const service = new AnnotationDocumentService(typedVault, trash);
+    const state = bookState([highlight()]);
+    const input = { sourceFile, state, title: "Test Book", author: "Test Author" };
 
-    entries.set("Templates/Export.md", {
-      path: "Templates/Export.md",
-      extension: "md",
-      content: "# {{document.title}}\n\nBook: {{book.title}}\n\n{{entries}}",
-    });
-    await service.sync({
-      sourceFile,
-      state,
-      title: "Test Book",
-      author: "Test Author",
-      exportTemplate: "custom",
-      customExportTemplatePath: "Templates/Export.md",
-    });
-    const paths = state.annotationDocuments;
-    expect(paths?.highlightPath).toMatch(/^Literature notes\/Reading notes\/Test Book\/Test Book-Highlight-\d{4}-\d{2}-\d{2}\.md$/);
-    expect(paths?.notePath).toMatch(/^Literature notes\/Reading notes\/Test Book\/Test Book-Note-\d{4}-\d{2}-\d{2}\.md$/);
+    await service.sync(input);
+    expect(state.annotationDocuments).toMatchObject({ highlightPath: documentPath, notePath: documentPath });
+    expect(entries.get(documentPath)?.content).toMatch(/^---\ntags:\n {2}- book_notes\n---\n<!-- omni-book-reader:annotations:start -->\n# Test Book/);
 
     state.highlights[0]!.note = "A note added later";
-    await service.sync({
-      sourceFile,
-      state,
-      title: "Test Book",
-      author: "Test Author",
-      exportTemplate: "custom",
-      customExportTemplatePath: "Templates/Export.md",
-    });
-    await service.sync({
-      sourceFile,
-      state,
-      title: "Test Book",
-      author: "Test Author",
-      exportTemplate: "custom",
-      customExportTemplatePath: "Templates/Export.md",
-    });
-    expect(vault.create).toHaveBeenCalledTimes(2);
+    await service.sync(input);
+    await service.sync(input);
+    expect(vault.create).toHaveBeenCalledTimes(1);
     expect(vault.modify).toHaveBeenCalledTimes(1);
-    expect(entries.get(paths!.notePath)?.content).toContain("**Note:** A note added later");
-    expect(entries.get(paths!.notePath)?.content).toContain("Book: Test Book");
-    expect(entries.get(paths!.highlightPath)?.content).toContain("omni-book-reader:highlights:start");
+    expect(entries.get(documentPath)?.content).toContain("**Note:** A note added later");
+    expect(trash).not.toHaveBeenCalled();
 
-    const highlightDocument = entries.get(paths!.highlightPath)!;
-    highlightDocument.content = highlightDocument.content!.replace("?sourceVault=", "?vault=");
-    await service.migrateLegacyProtocolLinks([paths]);
-    expect(highlightDocument.content).toContain("?sourceVault=");
-    expect(highlightDocument.content).not.toContain("?vault=");
+    const document = entries.get(documentPath)!;
+    document.content = document.content!.replace("?sourceVault=", "?vault=");
+    await service.migrateLegacyProtocolLinks([state.annotationDocuments]);
+    expect(document.content).toContain("?sourceVault=");
+  });
+
+  it("moves an old highlight/note pair into the new file and trashes the old files", async () => {
+    const { entries, typedVault, trash, addFile } = memoryVault();
+    const oldHighlights = "Books/Test Book/Test Book-Highlight-2026-07-19.md";
+    const oldNotes = "Books/Test Book/Test Book-Note-2026-07-19.md";
+    addFile(oldHighlights, "<!-- omni-book-reader:highlights:start -->\n# Old\n<!-- omni-book-reader:highlights:end -->\n");
+    addFile(oldNotes, "My own summary\n\n<!-- omni-book-reader:notes:start -->\n# Old\n<!-- omni-book-reader:notes:end -->\n");
+    const state = bookState([highlight()]);
+    state.annotationDocuments = { highlightPath: oldHighlights, notePath: oldNotes, createdDate: "2026-07-19" };
+    const service = new AnnotationDocumentService(typedVault, trash);
+
+    await service.sync({ sourceFile, state, title: "Test Book", author: "" });
+
+    const content = entries.get(documentPath)?.content ?? "";
+    expect(content).toContain("omni-book-reader:annotations:end -->\n\nMy own summary\n");
+    expect(content).not.toContain("# Old");
+    expect(state.annotationDocuments).toEqual({ highlightPath: documentPath, notePath: documentPath, createdDate: "2026-07-19" });
+    expect(trash.mock.calls.map(([file]) => file.path)).toEqual([oldHighlights, oldNotes, "Books/Test Book"]);
+
+    // A second device repeating the move does not duplicate the carried text.
+    addFile(oldNotes, "My own summary\n");
+    state.annotationDocuments = { highlightPath: oldHighlights, notePath: oldNotes, createdDate: "2026-07-19" };
+    await service.sync({ sourceFile, state, title: "Test Book", author: "" });
+    expect(entries.get(documentPath)?.content?.match(/My own summary/g)).toHaveLength(1);
+  });
+
+  it("keeps the old files when the new file cannot be written", async () => {
+    const { entries, typedVault, trash, addFile } = memoryVault();
+    const oldHighlights = "Books/Test Book/Test Book-Highlight-2026-07-19.md";
+    addFile(oldHighlights, "notes");
+    entries.set(documentPath, { path: documentPath, children: [] });
+    const state = bookState([highlight()]);
+    const previous = { highlightPath: oldHighlights, notePath: oldHighlights, createdDate: "2026-07-19" };
+    state.annotationDocuments = previous;
+    const service = new AnnotationDocumentService(typedVault, trash);
+
+    await expect(service.sync({ sourceFile, state, title: "Test Book", author: "" })).rejects.toThrow("path is not a file");
+    expect(trash).not.toHaveBeenCalled();
+    expect(state.annotationDocuments).toBe(previous);
   });
 });

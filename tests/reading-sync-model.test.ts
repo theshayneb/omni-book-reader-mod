@@ -3,6 +3,7 @@ import {
   applySyncedBook,
   canonicalJson,
   createSyncDocument,
+  emptySyncedBook,
   mergeSyncDocumentInto,
   mergeSyncedBooks,
   parseSyncDocument,
@@ -195,5 +196,21 @@ describe("reading sync model", () => {
     expect(parseSyncDocument("not json")).toBeNull();
     expect(parseSyncDocument(JSON.stringify({ format: "something-else", version: 1, deviceId: "x", books: {} }))).toBeNull();
     expect(parseSyncDocument(JSON.stringify({ format: "omni-book-reader-sync", version: 1, books: {} }))).toBeNull();
+  });
+
+  it("prefers the single annotation file over an older highlight/note pair in any merge order", () => {
+    const pair = { ...emptySyncedBook(), annotationDocuments: { highlightPath: "Books/a/a-Highlight-2026-01-01.md", notePath: "Books/a/a-Note-2026-01-01.md", createdDate: "2026-01-01" } };
+    const single = { ...emptySyncedBook(), annotationDocuments: { highlightPath: "Media/Books/Attachments/A.md", notePath: "Media/Books/Attachments/A.md", createdDate: "2026-01-01" } };
+
+    expect(mergeSyncedBooks(pair, single).annotationDocuments).toEqual(single.annotationDocuments);
+    expect(mergeSyncedBooks(single, pair).annotationDocuments).toEqual(single.annotationDocuments);
+  });
+
+  it("syncs the page a highlight was made on", () => {
+    const device = new Device("device", bookState({ highlights: [highlight("a", { page: "12" })] }));
+    device.sync(2000);
+    const parsed = parseSyncDocument(canonicalJson(device.doc));
+    const highlights = Object.values(Object.values(parsed?.books ?? {})[0]?.highlights ?? {});
+    expect(highlights[0] && "value" in highlights[0] ? highlights[0].value.page : undefined).toBe("12");
   });
 });

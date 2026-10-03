@@ -18,7 +18,7 @@ import { isValidCfi, normalizeVaultPath } from "./utils";
  * - position and completion: last-writer-wins by timestamp
  * - reading time: one grow-only counter per device, summed
  * - last opened/read and furthest progress: maximum
- * - annotation document paths: the earliest-created pair wins
+ * - annotation document paths: a single-file location beats an old two-file pair, then the earliest created wins
  */
 
 export const SYNC_FORMAT = "omni-book-reader-sync";
@@ -127,8 +127,14 @@ function newerCompletion(left?: SyncedCompletion, right?: SyncedCompletion): Syn
 
 function earlierDocuments(left?: AnnotationDocuments, right?: AnnotationDocuments): AnnotationDocuments | undefined {
   if (!left || !right) return left ?? right;
-  const leftKey = `${left.createdDate || "9999-99-99"}\n${left.highlightPath}`;
-  const rightKey = `${right.createdDate || "9999-99-99"}\n${right.highlightPath}`;
+  // A single-file location (highlightPath === notePath) replaces the old two-file layout, so it always wins.
+  const key = (documents: AnnotationDocuments): string => [
+    documents.highlightPath === documents.notePath ? "0" : "1",
+    documents.createdDate || "9999-99-99",
+    documents.highlightPath,
+  ].join("\n");
+  const leftKey = key(left);
+  const rightKey = key(right);
   return leftKey <= rightKey ? left : right;
 }
 
@@ -395,6 +401,7 @@ function parseHighlight(input: unknown): SyncedHighlight | null {
     tags: Array.isArray(input.tags) ? input.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 20) : [],
     sectionIndex: Math.max(0, Math.round(finite(input.sectionIndex))),
     createdAt: finite(input.createdAt),
+    ...(typeof input.page === "string" && input.page.trim() ? { page: input.page.trim().slice(0, 50) } : {}),
     ...(typeof input.note === "string" && input.note ? { note: input.note.slice(0, 20000) } : {}),
     ...(typeof input.noteUpdatedAt === "number" && Number.isFinite(input.noteUpdatedAt) ? { noteUpdatedAt: input.noteUpdatedAt } : {}),
   };

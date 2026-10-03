@@ -1,31 +1,22 @@
 import { normalizePath } from "obsidian";
-import type { TAbstractFile, TFile, Vault } from "obsidian";
+import type { TAbstractFile, TFile, TFolder, Vault } from "obsidian";
+import { compare as compareCfi } from "foliate-js/epubcfi.js";
 import type {
   AnnotationDocuments,
   BookState,
   ExportTemplatePreset,
-  HighlightColor,
-  HighlightStyle,
   ReaderHighlight,
 } from "./types";
 
 const LEGACY_GENERATED_MARKER = "<!-- omni-book-reader:generated -->";
 
-const COLOR_VALUES: Record<HighlightColor, string> = {
-  yellow: "#FFD54F",
-  green: "#81C784",
-  blue: "#64B5F6",
-  pink: "#F48FB1",
-};
+/** Every book's highlights and notes are kept in one file in this vault folder. */
+export const ANNOTATION_FOLDER = "Media/Books/Attachments";
 
-const STYLE_LABELS: Record<HighlightStyle, string> = {
-  highlight: "Highlight",
-  underline: "Underline",
-  strikethrough: "Strikethrough",
-  squiggly: "Squiggly underline",
-};
+const FRONTMATTER = "---\ntags:\n  - book_notes\n---\n";
 
-type AnnotationDocumentKind = "highlights" | "notes";
+/** `annotations` is the current single-file block; the other two are only read when moving old files. */
+type AnnotationDocumentKind = "annotations" | "highlights" | "notes";
 
 export interface AnnotationDocumentInput {
   sourceFile: TFile;
@@ -48,6 +39,10 @@ function isFile(value: TAbstractFile | null): value is TFile {
   return Boolean(value && "extension" in value);
 }
 
+function isFolder(value: TAbstractFile | null): value is TFolder {
+  return Boolean(value && "children" in value);
+}
+
 function dateStamp(timestamp: number): string {
   const date = new Date(timestamp);
   const year = date.getFullYear();
@@ -64,22 +59,58 @@ function quote(value: string): string {
   return value.replace(/\r\n?/g, "\n").split("\n").map((line) => `> ${line}`).join("\n");
 }
 
+/** Turns a highlight tag into an Obsidian tag: spaces become `_` and characters tags cannot hold are dropped. */
+export function toObsidianTag(tag: string): string {
+  const body = tag.trim().replace(/^#+/, "").replace(/\s+/g, "_").replace(/[^\p{L}\p{N}_/-]/gu, "");
+  return body ? `#${body}` : "";
+}
+
 function tagText(highlight: ReaderHighlight): string {
-  return highlight.tags.length ? `Tags: ${highlight.tags.join(", ")}` : "";
+  return Array.from(new Set(highlight.tags.map(toObsidianTag).filter(Boolean))).join(" ");
 }
 
-function entryMetadata(highlight: ReaderHighlight, timestamp = highlight.createdAt): string {
-  const values = [
-    `Date: ${dateStamp(timestamp)}`,
-    `Color: ${COLOR_VALUES[highlight.color]}`,
-    `Style: ${STYLE_LABELS[highlight.style]}`,
-  ];
-  if (highlight.tags.length) values.push(`Tags: ${highlight.tags.join(", ")}`);
-  return `*${values.join(" | ")}*`;
+function pageText(highlight: ReaderHighlight): string {
+  return highlight.page ? `Page ${singleLine(highlight.page)}` : "";
 }
 
-function sortedHighlights(highlights: ReaderHighlight[]): ReaderHighlight[] {
-  return [...highlights].sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
+/** Builds the vault file name from the EPUB title, dropping characters that file names and links cannot hold. */
+export function annotationFileName(title: string, fallback: string): string {
+  const clean = (value: string): string => value
+    .replace(/[\\/:*?"<>|#^[\]\p{Cc}]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\.+/, "")
+    .replace(/[\s.]+$/, "")
+    .slice(0, 180)
+    .trim();
+  return clean(title) || clean(fallback) || "Untitled book";
+}
+
+export function annotationDocumentPath(title: string, sourceFile: TFile): string {
+  return normalizePath(`${ANNOTATION_FOLDER}/${annotationFileName(title, sourceFile.basename)}.md`);
+}
+
+function comparePosition(left: ReaderHighlight, right: ReaderHighlight): number {
+  if (left.sectionIndex !== right.sectionIndex) return left.sectionIndex - right.sectionIndex;
+  try {
+    const order = compareCfi(left.cfi, right.cfi);
+    if (order) return order;
+  } catch {
+    // Fall back to creation order when a CFI cannot be parsed.
+  }
+  return left.createdAt - right.createdAt || left.id.localeCompare(right.id);
+}
+
+/** Highlights in book order, grouped under the chapter they belong to. */
+function chapterGroups(highlights: ReaderHighlight[]): Array<{ chapter: string; highlights: ReaderHighlight[] }> {
+  const groups: Array<{ chapter: string; highlights: ReaderHighlight[] }> = [];
+  for (const highlight of [...highlights].sort(comparePosition)) {
+    const chapter = singleLine(highlight.chapter, "Untitled chapter");
+    const last = groups[groups.length - 1];
+    if (last?.chapter === chapter) last.highlights.push(highlight);
+    else groups.push({ chapter, highlights: [highlight] });
+  }
+  return groups;
 }
 
 export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string): string {
@@ -100,67 +131,48 @@ function sourceLink(highlight: ReaderHighlight, options: AnnotationRenderOptions
   return `[Open in book](${buildCfiLink(options.vaultName ?? "", options.sourcePath, highlight.cfi)})`;
 }
 
-function renderClassicEntries(
-  kind: AnnotationDocumentKind,
-  highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions,
-): string {
-  if (!highlights.length) return kind === "notes" ? "_No notes yet._" : "_No highlights yet._";
-  const lines: string[] = [];
-  for (const highlight of highlights) {
-    const link = sourceLink(highlight, options);
-    lines.push(`### ${singleLine(highlight.chapter, "Untitled chapter")}`, "", quote(highlight.text), "");
-    if (kind === "notes") lines.push(`**Note:** ${highlight.note?.trim() ?? ""}`, "");
-    if (link) lines.push(link, "");
-    lines.push(entryMetadata(highlight, kind === "notes" ? highlight.noteUpdatedAt ?? highlight.createdAt : highlight.createdAt), "", "---", "");
-  }
-  return lines.join("\n").trimEnd();
+function entryDetails(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
+  return [pageText(highlight), dateStamp(highlight.createdAt), tagText(highlight), sourceLink(highlight, options)]
+    .filter(Boolean)
+    .join(" · ");
 }
 
-function renderCompactEntries(
-  kind: AnnotationDocumentKind,
-  highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions,
-): string {
-  if (!highlights.length) return kind === "notes" ? "_No notes yet._" : "_No highlights yet._";
-  return highlights.map((highlight) => {
-    const link = sourceLink(highlight, options);
-    const excerpt = singleLine(highlight.text, "(empty excerpt)");
-    const lines = [`- **${singleLine(highlight.chapter, "Untitled chapter")}** — ${excerpt}${link ? ` · ${link}` : ""}`];
-    if (kind === "notes") lines.push(`  - **Note:** ${singleLine(highlight.note ?? "")}`);
-    const tags = tagText(highlight);
-    if (tags) lines.push(`  - ${tags}`);
-    lines.push(`  - ${entryMetadata(highlight, kind === "notes" ? highlight.noteUpdatedAt ?? highlight.createdAt : highlight.createdAt)}`);
-    return lines.join("\n");
-  }).join("\n");
+function renderClassicEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
+  const lines = [quote(highlight.text), ""];
+  const note = highlight.note?.trim();
+  if (note) lines.push(`**Note:** ${note}`, "");
+  lines.push(entryDetails(highlight, options));
+  return lines.join("\n");
 }
 
-function renderCalloutEntries(
-  kind: AnnotationDocumentKind,
-  highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions,
-): string {
-  if (!highlights.length) return kind === "notes" ? "_No notes yet._" : "_No highlights yet._";
-  return highlights.map((highlight) => {
-    const lines = [`> [!quote] ${singleLine(highlight.chapter, "Untitled chapter")}`];
-    for (const line of highlight.text.replace(/\r\n?/g, "\n").split("\n")) lines.push(`> ${line}`);
-    if (kind === "notes") lines.push(">", `> **Note:** ${highlight.note?.trim() ?? ""}`);
-    const details = [sourceLink(highlight, options), tagText(highlight)].filter(Boolean).join(" · ");
-    if (details) lines.push(">", `> ${details}`);
-    lines.push(">", `> ${entryMetadata(highlight, kind === "notes" ? highlight.noteUpdatedAt ?? highlight.createdAt : highlight.createdAt)}`);
-    return lines.join("\n");
-  }).join("\n\n");
+function renderCompactEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
+  const lines = [`- ${singleLine(highlight.text, "(empty excerpt)")}`];
+  const note = highlight.note?.trim();
+  if (note) lines.push(`  - **Note:** ${singleLine(note)}`);
+  lines.push(`  - ${entryDetails(highlight, options)}`);
+  return lines.join("\n");
 }
 
-function renderEntries(
-  kind: AnnotationDocumentKind,
-  highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions,
-): string {
+function renderCalloutEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
+  const lines = [`> [!quote]${highlight.page ? ` ${pageText(highlight)}` : ""}`, quote(highlight.text)];
+  const note = highlight.note?.trim();
+  if (note) lines.push(">", quote(`**Note:** ${note}`));
+  lines.push(">", `> ${entryDetails(highlight, options)}`);
+  return lines.join("\n");
+}
+
+function renderEntries(highlights: ReaderHighlight[], options: AnnotationRenderOptions): string {
+  if (!highlights.length) return "_No highlights yet._";
   const preset = options.preset ?? "classic";
-  if (preset === "compact") return renderCompactEntries(kind, highlights, options);
-  if (preset === "callout") return renderCalloutEntries(kind, highlights, options);
-  return renderClassicEntries(kind, highlights, options);
+  const render = preset === "compact"
+    ? renderCompactEntry
+    : preset === "callout"
+      ? renderCalloutEntry
+      : renderClassicEntry;
+  const separator = preset === "compact" ? "\n" : "\n\n";
+  return chapterGroups(highlights)
+    .map((group) => `## ${group.chapter}\n\n${group.highlights.map((item) => render(item, options)).join(separator)}`)
+    .join("\n\n");
 }
 
 function applyDocumentTemplate(template: string, variables: Record<string, string>): string {
@@ -169,53 +181,32 @@ function applyDocumentTemplate(template: string, variables: Record<string, strin
   return `${output.trim() || variables.entries}\n`;
 }
 
-function renderDocument(
-  kind: AnnotationDocumentKind,
+/** Renders the managed part of a book's annotation file: every highlight, with its note, grouped by chapter. */
+export function renderAnnotationDocument(
   title: string,
   author: string,
   highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions,
+  options: AnnotationRenderOptions = {},
 ): string {
-  const documentTitle = kind === "notes" ? "Omni Book Reader - Notes" : "Omni Book Reader - Highlights";
-  const entries = renderEntries(kind, highlights, options);
+  const bookTitle = singleLine(title, "Untitled book");
+  const entries = renderEntries(highlights, options);
   const normalizedAuthor = singleLine(author);
   const builtIn = [
-    `# ${documentTitle}`,
-    "",
-    `## ${singleLine(title, "Untitled book")}`,
+    `# ${bookTitle}`,
     ...(normalizedAuthor ? ["", `*${normalizedAuthor}*`] : []),
     "",
     entries,
   ].join("\n");
   if (!options.customTemplate?.trim()) return `${builtIn.trimEnd()}\n`;
   return applyDocumentTemplate(options.customTemplate, {
-    "document.title": documentTitle,
-    "document.kind": kind,
-    "book.title": singleLine(title, "Untitled book"),
+    "document.title": "Highlights and notes",
+    "document.kind": "annotations",
+    "book.title": bookTitle,
     "book.author": normalizedAuthor,
     "book.filePath": normalizePath(options.sourcePath ?? ""),
     "export.date": dateStamp(options.exportedAt ?? Date.now()),
     entries,
   });
-}
-
-export function renderHighlightDocument(
-  title: string,
-  author: string,
-  highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions = {},
-): string {
-  return renderDocument("highlights", title, author, sortedHighlights(highlights), options);
-}
-
-export function renderNoteDocument(
-  title: string,
-  author: string,
-  highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions = {},
-): string {
-  const notes = sortedHighlights(highlights).filter((highlight) => Boolean(highlight.note?.trim()));
-  return renderDocument("notes", title, author, notes, options);
 }
 
 function managedStart(kind: AnnotationDocumentKind): string {
@@ -249,6 +240,25 @@ export function mergeManagedDocument(existing: string, kind: AnnotationDocumentK
   return `${existing.trimEnd()}\n\n${block}\n`;
 }
 
+/** Adds the `book_notes` tag frontmatter unless the file already has frontmatter of its own. */
+export function withFrontmatter(content: string): string {
+  return /^---\r?\n/.test(content) ? content : `${FRONTMATTER}${content}`;
+}
+
+/** What the person wrote in an annotation file, without the plugin's generated blocks or default frontmatter. */
+export function userContent(content: string): string {
+  if (content.trimStart().startsWith(LEGACY_GENERATED_MARKER)) return "";
+  let rest = content.startsWith(FRONTMATTER) ? content.slice(FRONTMATTER.length) : content;
+  for (const kind of ["annotations", "highlights", "notes"] as const) {
+    const start = managedStart(kind);
+    const end = managedEnd(kind);
+    const startIndex = rest.indexOf(start);
+    const endIndex = startIndex >= 0 ? rest.indexOf(end, startIndex + start.length) : -1;
+    if (endIndex >= 0) rest = `${rest.slice(0, startIndex)}${rest.slice(endIndex + end.length)}`;
+  }
+  return rest.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function parentPath(path: string): string {
   const normalized = normalizePath(path);
   const separator = normalized.lastIndexOf("/");
@@ -262,17 +272,21 @@ function joinPath(...parts: string[]): string {
 export class AnnotationDocumentService {
   private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(private readonly vault: Vault) {}
+  constructor(
+    private readonly vault: Vault,
+    /** Should be `app.fileManager.trashFile`, which respects the person's deletion preference. */
+    private readonly trashFile: (file: TAbstractFile) => Promise<void>,
+  ) {}
 
   sync(input: AnnotationDocumentInput): Promise<void> {
-    const paths = input.state.annotationDocuments ?? this.createDocumentPaths(input.sourceFile);
-    input.state.annotationDocuments = paths;
     const job = this.writeChain
       .catch(() => undefined)
       .then(async () => {
+        const path = annotationDocumentPath(input.title, input.sourceFile);
+        const previous = input.state.annotationDocuments;
         const preset = input.exportTemplate ?? "classic";
         const customTemplate = preset === "custom"
-          ? await this.loadCustomTemplate(input.customExportTemplatePath, paths)
+          ? await this.loadCustomTemplate(input.customExportTemplatePath, path)
           : "";
         const options: AnnotationRenderOptions = {
           sourcePath: input.sourceFile.path,
@@ -280,12 +294,21 @@ export class AnnotationDocumentService {
           preset,
           ...(customTemplate ? { customTemplate } : {}),
         };
-        const highlightMarkdown = renderHighlightDocument(input.title, input.author, input.state.highlights, options);
-        const noteMarkdown = renderNoteDocument(input.title, input.author, input.state.highlights, options);
-        await this.ensureFolder(parentPath(paths.highlightPath));
-        await this.ensureFolder(parentPath(paths.notePath));
-        await this.upsertManaged(paths.highlightPath, "highlights", highlightMarkdown);
-        await this.upsertManaged(paths.notePath, "notes", noteMarkdown);
+        const markdown = renderAnnotationDocument(input.title, input.author, input.state.highlights, options);
+        const oldFiles = this.oldDocumentFiles(previous, path);
+        const carried: string[] = [];
+        for (const file of oldFiles) {
+          const text = userContent(await this.vault.cachedRead(file));
+          if (text) carried.push(text);
+        }
+        await this.ensureFolder(parentPath(path));
+        await this.upsertManaged(path, markdown, carried);
+        input.state.annotationDocuments = {
+          highlightPath: path,
+          notePath: path,
+          createdDate: previous?.createdDate || dateStamp(Date.now()),
+        };
+        await this.removeOldDocuments(oldFiles);
       });
     this.writeChain = job.catch(() => undefined);
     return job;
@@ -319,31 +342,36 @@ export class AnnotationDocumentService {
     return job;
   }
 
-  private async loadCustomTemplate(path: string | undefined, documents: AnnotationDocuments): Promise<string> {
+  private async loadCustomTemplate(path: string | undefined, documentPath: string): Promise<string> {
     const normalized = normalizePath(path?.trim() ?? "");
     if (!normalized) throw new Error("No custom export template path is set.");
-    if (normalized === documents.highlightPath || normalized === documents.notePath) {
-      throw new Error("The custom template cannot be one of this book's export documents.");
+    if (normalized === documentPath) {
+      throw new Error("The custom template cannot be this book's highlights and notes file.");
     }
     const file = this.vault.getAbstractFileByPath(normalized);
     if (!isFile(file) || file.extension.toLowerCase() !== "md") throw new Error(`Custom export template not found: ${normalized}`);
     return this.vault.cachedRead(file);
   }
 
-  private createDocumentPaths(sourceFile: TFile): AnnotationDocuments {
-    const createdDate = dateStamp(Date.now());
-    const sourceFolder = parentPath(sourceFile.path);
-    const outputFolder = joinPath(sourceFolder, sourceFile.basename);
-    let suffix = "";
-    let attempt = 1;
-    while (true) {
-      const highlightPath = joinPath(outputFolder, `${sourceFile.basename}-Highlight-${createdDate}${suffix}.md`);
-      const notePath = joinPath(outputFolder, `${sourceFile.basename}-Note-${createdDate}${suffix}.md`);
-      if (!this.vault.getAbstractFileByPath(highlightPath) && !this.vault.getAbstractFileByPath(notePath)) {
-        return { highlightPath, notePath, createdDate };
-      }
-      attempt += 1;
-      suffix = `-${attempt}`;
+  /** Files from the old two-file layout (or an earlier title) that should be folded into `path`. */
+  private oldDocumentFiles(previous: AnnotationDocuments | undefined, path: string): TFile[] {
+    if (!previous) return [];
+    const files: TFile[] = [];
+    for (const oldPath of new Set([previous.highlightPath, previous.notePath])) {
+      if (normalizePath(oldPath) === path) continue;
+      const file = this.vault.getAbstractFileByPath(normalizePath(oldPath));
+      if (isFile(file) && file.extension.toLowerCase() === "md") files.push(file);
+    }
+    return files;
+  }
+
+  private async removeOldDocuments(files: TFile[]): Promise<void> {
+    const folders = new Set(files.map((file) => parentPath(file.path)));
+    for (const file of files) await this.trashFile(file);
+    for (const folderPath of folders) {
+      if (!folderPath || normalizePath(folderPath) === normalizePath(ANNOTATION_FOLDER)) continue;
+      const folder = this.vault.getAbstractFileByPath(folderPath);
+      if (isFolder(folder) && !folder.children.length) await this.trashFile(folder);
     }
   }
 
@@ -358,15 +386,17 @@ export class AnnotationDocumentService {
     }
   }
 
-  private async upsertManaged(path: string, kind: AnnotationDocumentKind, generated: string): Promise<void> {
+  private async upsertManaged(path: string, generated: string, carried: string[]): Promise<void> {
     const existing = this.vault.getAbstractFileByPath(path);
-    if (isFile(existing)) {
-      const current = await this.vault.cachedRead(existing);
-      const next = mergeManagedDocument(current, kind, generated);
-      if (next !== current) await this.vault.modify(existing, next);
-      return;
+    if (existing && !isFile(existing)) {
+      throw new Error(`Could not write the annotation document because the path is not a file: ${path}`);
     }
-    if (existing) throw new Error(`Could not write the annotation document because the path is not a file: ${path}`);
-    await this.vault.create(path, mergeManagedDocument("", kind, generated));
+    const current = isFile(existing) ? await this.vault.cachedRead(existing) : "";
+    let next = withFrontmatter(mergeManagedDocument(current, "annotations", generated));
+    for (const text of carried) {
+      if (!next.includes(text)) next = `${next.trimEnd()}\n\n${text}\n`;
+    }
+    if (!isFile(existing)) await this.vault.create(path, next);
+    else if (next !== current) await this.vault.modify(existing, next);
   }
 }

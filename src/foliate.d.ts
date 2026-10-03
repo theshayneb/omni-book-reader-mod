@@ -47,3 +47,7 @@ declare module "foliate-js/overlayer.js" {
     static squiggly(this: void, rects: DOMRect[], options?: { color?: string; width?: number; padding?: number; writingMode?: string }): SVGElement;
   }
 }
+
+declare module "foliate-js/epubcfi.js" {
+  export function compare(a: string, b: string): number;
+}

@@ -99,7 +99,6 @@ const HIGHLIGHT_STYLES: Record<HighlightStyle, { label: string; icon: string }> 
 };
 
 type SidebarTab = "toc" | "search" | "bookmarks" | "highlights";
-type AnnotationExportKind = "highlights" | "notes";
 type HighlightNoteFilter = "all" | "with-note" | "without-note";
 type HighlightDateFilter = "all" | "today" | "7d" | "30d";
 type HighlightSort = "newest" | "oldest" | "chapter";
@@ -616,29 +615,23 @@ export class OmniBookReaderView extends FileView {
     this.updateBookmarkButton();
   }
 
-  async exportAnnotations(kind: AnnotationExportKind): Promise<void> {
+  async exportAnnotations(): Promise<void> {
     if (!this.bookState || !this.file) {
       new Notice("Open an EPUB first");
       return;
     }
-    const highlights = this.bookState.highlights;
-    if (kind === "highlights" && !highlights.length) {
+    if (!this.bookState.highlights.length) {
       new Notice("This book has no highlights to export");
       return;
     }
-    if (kind === "notes" && !highlights.some((highlight) => Boolean(highlight.note?.trim()))) {
-      new Notice("This book has no notes to export");
-      return;
-    }
     if (!await this.syncAnnotationDocuments()) return;
-    const documents = this.bookState.annotationDocuments;
-    const path = kind === "highlights" ? documents?.highlightPath : documents?.notePath;
+    const path = this.bookState.annotationDocuments?.highlightPath;
     if (!path) {
       new Notice("Could not find the export document path");
       return;
     }
     this.openAnnotationDocument(path);
-    new Notice(kind === "highlights" ? "Highlights exported" : "Notes exported");
+    new Notice("Highlights and notes exported");
   }
 
   async navigateToCfi(cfi: string): Promise<void> {
@@ -2015,6 +2008,8 @@ export class OmniBookReaderView extends FileView {
       existing.color = color;
       existing.style = style;
       existing.text = pending.text;
+      existing.page ??= this.currentPageLabel() || undefined;
+      if (!existing.page) delete existing.page;
       existing.tags = Array.from(new Set(pending.connected.flatMap((item) => item.tags)));
       const notes = Array.from(new Set(pending.connected
         .map((item) => item.note?.trim())
@@ -2041,6 +2036,8 @@ export class OmniBookReaderView extends FileView {
         sectionIndex: pending.sectionIndex,
         createdAt: Date.now(),
       };
+      const page = this.currentPageLabel();
+      if (page) highlight.page = page;
       this.bookState.highlights.unshift(highlight);
       await this.reader.addAnnotation(annotationFor(highlight));
       saved = highlight;
@@ -2218,6 +2215,14 @@ export class OmniBookReaderView extends FileView {
     this.pendingSelection = null;
     this.selectionToolbarEl?.removeClass("is-visible");
     this.uiState.close("selection");
+  }
+
+  /** The page shown in the reader: the publisher's page label when the EPUB has one, otherwise the location number. */
+  private currentPageLabel(): string {
+    const label = formatLanguageValue(this.currentLocation.pageItem?.label);
+    if (label) return label.slice(0, 50);
+    const location = this.currentLocation.location?.current;
+    return typeof location === "number" && location > 0 ? String(location) : "";
   }
 
   private onRelocate(location: FoliateLocation): void {
@@ -2424,10 +2429,8 @@ export class OmniBookReaderView extends FileView {
     const documents = this.bookState?.annotationDocuments;
     if (documents) {
       const actions = this.highlightPanelEl.createDiv({ cls: "omni-book-reader-document-actions" });
-      const exportHighlights = actions.createEl("button", { text: "Export highlights", attr: { type: "button", "aria-label": "Export all highlights" } });
-      exportHighlights.addEventListener("click", () => void this.exportAnnotations("highlights"));
-      const exportNotes = actions.createEl("button", { text: "Export notes", attr: { type: "button", "aria-label": "Export all highlight notes" } });
-      exportNotes.addEventListener("click", () => void this.exportAnnotations("notes"));
+      const exportAnnotations = actions.createEl("button", { text: "Export highlights and notes", attr: { type: "button", "aria-label": "Export all highlights and notes" } });
+      exportAnnotations.addEventListener("click", () => void this.exportAnnotations());
     }
     if (!items.length) {
       this.highlightPanelEl.createDiv({ cls: "omni-book-reader-empty", text: "Select text to create a highlight" });

@@ -32,7 +32,7 @@ Merge rules (`src/reading-sync-model.ts`) are commutative, associative, and idem
 | Reading time | One grow-only counter per device; the total is their sum. |
 | Last opened/read, furthest progress | Maximum. |
 | Finished state | Last-writer-wins, so "mark as unfinished" syncs too. |
-| Annotation export document paths | Earliest-created pair wins, so devices do not create duplicate Highlight/Note documents. |
+| Annotation export document paths | A single-file location (`highlightPath` equals `notePath`) beats an old Highlight/Note pair; otherwise the earliest created wins. The file path itself is derived from the book title, so this only records where the file was last written. |
 
 Local edits are detected by diffing (`recordLocalBook`): the local `BookState` is compared with what the sync document last said about the book, and anything new, changed, or missing becomes a timestamped change. This keeps the many existing mutation sites in the reader untouched.
 

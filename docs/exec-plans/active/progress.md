@@ -12,7 +12,7 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 - Verification: `npm run verify:quick` and `npm run verify:full` are the standard gates.
 - Active feature plan: [`mobile-selection-navigation-lock.md`](mobile-selection-navigation-lock.md) for GitHub Issue #3.
 - Latest completed release plan: [`../completed/release-1.0.2.md`](../completed/release-1.0.2.md).
-- Latest completed feature plan: [`../completed/highlight-list-readability.md`](../completed/highlight-list-readability.md) for GitHub Issue #7.
+- Latest completed feature plan: [`../completed/single-annotation-file.md`](../completed/single-annotation-file.md), one highlights-and-notes file per book (1.1.1).
 
 ## Workflow
 

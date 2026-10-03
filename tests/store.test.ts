@@ -43,6 +43,7 @@ describe("reader data store", () => {
             tags: [" archetype ", "archetype", "social psychology"],
             sectionIndex: 1,
             createdAt: 3,
+            page: "  42 ",
           }],
           annotationDocuments: {
             highlightPath: "Books\\book\\book-Highlight-2026-08-01.md",
@@ -65,6 +66,7 @@ describe("reader data store", () => {
     expect(data.books["Books/book.epub"]?.annotationDocuments?.notePath).toBe("Books/book/book-Note-2026-08-01.md");
     expect(data.books["Books/book.epub"]?.highlights[0]?.style).toBe("highlight");
     expect(data.books["Books/book.epub"]?.highlights[0]?.tags).toEqual(["archetype", "social psychology"]);
+    expect(data.books["Books/book.epub"]?.highlights[0]?.page).toBe("42");
     expect(data.books["Books/book.epub"]?.readingStats).toMatchObject({ totalReadingMs: 0, furthestFraction: 1 });
     expect(data.schemaVersion).toBe(5);
   });

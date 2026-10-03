@@ -184,7 +184,7 @@ function renderSettings(
 
   new Setting(container)
     .setName("Export template")
-    .setDesc("Control how each annotation appears in highlight and note documents.")
+    .setDesc("Control how each annotation appears in each book's highlights and notes file.")
     .addDropdown((dropdown) => dropdown
       .addOptions({
         classic: "Classic sections",
@@ -412,7 +412,7 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
           },
           {
             name: "Export template",
-            desc: "Control how each annotation appears in highlight and note documents.",
+            desc: "Control how each annotation appears in each book's highlights and notes file.",
             control: {
               type: "dropdown",
               key: "exportTemplate",

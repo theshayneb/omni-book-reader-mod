@@ -82,7 +82,10 @@ export default class OmniBookReaderPlugin extends Plugin {
     } catch (error) {
       console.error("[Omni Book Reader] Could not recover data from a previous plugin folder", error);
     }
-    this.annotationDocuments = new AnnotationDocumentService(this.app.vault);
+    this.annotationDocuments = new AnnotationDocumentService(
+      this.app.vault,
+      (file) => this.app.fileManager.trashFile(file),
+    );
     try {
       await this.annotationDocuments.migrateLegacyProtocolLinks(
         Object.values(this.store.snapshot.books).map((state) => state.annotationDocuments),
@@ -167,19 +170,10 @@ export default class OmniBookReaderPlugin extends Plugin {
       id: "export-current-highlights",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
-        if (!checking && view) void view.exportAnnotations("highlights");
+        if (!checking && view) void view.exportAnnotations();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Export highlights from current EPUB");
-
-    this.addUiCommand({
-      id: "export-current-notes",
-      checkCallback: (checking) => {
-        const view = this.getActiveReader();
-        if (!checking && view) void view.exportAnnotations("notes");
-        return Boolean(view);
-      },
-    }, "Omni Book Reader: Export notes from current EPUB");
+    }, "Omni Book Reader: Export highlights and notes from current EPUB");
 
     this.addUiCommand({
       id: "export-current-chapter",

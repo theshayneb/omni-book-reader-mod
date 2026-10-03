@@ -4,6 +4,16 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ## Open items
 
+### TD-2026-004: Books with the same title share one annotation file
+
+- Status: Open
+- Area: annotation documents
+- Introduced: 2026-10-03, `docs/exec-plans/completed/single-annotation-file.md`
+- Impact: two different EPUBs whose metadata titles clean up to the same file name write to the same `Media/Books/Attachments/<title>.md`, and each overwrites the other's managed block
+- Reason accepted: the file must be named after the book note, which is named by title; the owner does not keep duplicate titles
+- Exit criteria: detect a managed block written for a different EPUB and pick a distinct name
+- Owner/trigger: address if two editions of the same book are read in one vault
+
 ### TD-2026-003: Verification wrappers fail on Windows Node 24
 
 - Status: Resolved (2026-09-23)
