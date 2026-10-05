@@ -117,7 +117,7 @@ export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string)
 
 /**
  * One highlight as a line under the book note's callout:
- * `> > - passage #quote #tags *-- note* (Chapter, [p. 14](link))`.
+ * `> > - passage #quote #tags *-- note* *(Chapter, [p. 14](link))*`.
  * The link back into the book is what marks the line as the plugin's.
  */
 export function renderHighlightLine(highlight: ReaderHighlight, sourcePath: string, vaultName = ""): string {
@@ -134,7 +134,7 @@ export function renderHighlightLine(highlight: ReaderHighlight, sourcePath: stri
     QUOTE_TAG,
     tags,
     note ? `*-- ${note}*` : "",
-    `(${location})`,
+    `*(${location})*`,
   ].filter(Boolean).join(" ");
 }
 

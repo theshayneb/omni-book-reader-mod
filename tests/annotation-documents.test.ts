@@ -80,9 +80,9 @@ describe("book note highlights", () => {
       sourceFile.path,
       "Test Vault",
     );
-    expect(line).toBe(`> > - The highlighted source text #quote #big_idea *-- My note. Still my note.* (Chapter 1, [p. 14](${link()}))`);
+    expect(line).toBe(`> > - The highlighted source text #quote #big_idea *-- My note. Still my note.* *(Chapter 1, [p. 14](${link()}))*`);
     expect(renderHighlightLine(highlight({ chapter: "Untitled chapter" }), sourceFile.path, "Test Vault"))
-      .toBe(`> > - The highlighted source text #quote ([Open in book](${link()}))`);
+      .toBe(`> > - The highlighted source text #quote *([Open in book](${link()}))*`);
   });
 
   it("orders lines by position in the book", () => {
@@ -148,7 +148,7 @@ describe("book note highlights", () => {
 
     await service.sync({ sourceFile, state, title: "Test Book", author: "" });
     expect(entries.get(notePath)?.content).toBe(
-      `---\nstatus: reading\n---\n# Test Book\n\n${HIGHLIGHTS_CALLOUT}\n> > - The highlighted source text #quote *-- Nice* (Chapter 1, [p. 3](${link()}))\n`,
+      `---\nstatus: reading\n---\n# Test Book\n\n${HIGHLIGHTS_CALLOUT}\n> > - The highlighted source text #quote *-- Nice* *(Chapter 1, [p. 3](${link()}))*\n`,
     );
     expect(state.annotationDocuments).toMatchObject({ highlightPath: notePath, notePath });
 
