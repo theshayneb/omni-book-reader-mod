@@ -45,3 +45,9 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return element.matches("input, textarea, select, [contenteditable='true']")
     || Boolean(element.closest?.("[contenteditable='true']"));
 }
+
+/** A page label as a frontmatter value: a number when it is one ("14" → 14), otherwise the label itself ("xii"). */
+export function progressValue(page: string): string | number {
+  const label = page.trim();
+  return /^\d+$/.test(label) ? Number(label) : label;
+}

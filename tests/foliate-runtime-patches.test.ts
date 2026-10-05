@@ -94,9 +94,8 @@ describe("Foliate mobile runtime compatibility", () => {
     URL.revokeObjectURL(url);
 
     iframe.src = url;
-    await settleAsyncReaders();
-
-    expect(iframe.srcdoc).toContain("Android chapter");
+    // The Blob is read asynchronously; wait for it rather than for a fixed delay, which is flaky under load.
+    await vi.waitFor(() => expect(iframe.srcdoc).toContain("Android chapter"), { timeout: 2000, interval: 10 });
     expect(iframe.srcdoc).not.toContain("<script");
     expect(iframe.getAttribute("src")).toBeNull();
   });

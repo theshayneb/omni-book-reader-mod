@@ -6,7 +6,7 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ### TD-2026-005: Foliate srcdoc test fails intermittently under full-suite load
 
-- Status: Open
+- Status: Resolved (2026-10-05): the test now waits for the iframe content with `vi.waitFor` instead of a fixed 10 ms delay
 - Area: tests (`tests/foliate-runtime-patches.test.ts`, "loads a revoked Foliate chapter Blob through normalized iframe srcdoc")
 - Introduced: seen 2026-10-03 during the 1.1.4 and 1.1.8 releases
 - Impact: `npm run verify:full` occasionally fails with `expected '' to contain 'Android chapter'`; the test passes when run alone and on a re-run

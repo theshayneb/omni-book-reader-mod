@@ -148,6 +148,7 @@ export interface ReaderPluginHost extends SettingsHost {
   store: ReaderDataStore;
   updateReaderSettings(patch: Partial<ReaderSettings>): void;
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void>;
+  recordReadingProgress(sourceFile: TFile, page: string): Promise<void>;
 }
 
 function iconButton(parent: HTMLElement, icon: string, label: string): HTMLButtonElement {
@@ -593,7 +594,8 @@ export class OmniBookReaderView extends FileView {
     void this.loadBook(file);
   }
 
-  async onUnloadFile(_file: TFile): Promise<void> {
+  async onUnloadFile(file: TFile): Promise<void> {
+    this.recordReadingProgress(file);
     await this.cleanupReader();
   }
 
@@ -604,6 +606,7 @@ export class OmniBookReaderView extends FileView {
     this.layoutObserver = null;
     if (this.layoutFrame !== null) window.cancelAnimationFrame(this.layoutFrame);
     this.layoutFrame = null;
+    if (this.file) this.recordReadingProgress(this.file);
     await this.cleanupReader();
     await this.plugin.store.flush();
     this.contentEl.empty();
@@ -2279,6 +2282,15 @@ export class OmniBookReaderView extends FileView {
     this.pendingSelection = null;
     this.selectionToolbarEl?.removeClass("is-visible");
     this.uiState.close("selection");
+  }
+
+  /** Writes the page being read into the book note when the tab closes or switches book; runs once per book. */
+  private recordReadingProgress(file: TFile): void {
+    const page = this.currentPageLabel();
+    if (!page || !this.bookState) return;
+    void this.plugin.recordReadingProgress(file, page).catch((error: unknown) => {
+      console.error("[Omni Book Reader] Could not record reading progress in the book note", error);
+    });
   }
 
   /** The page shown in the reader: the publisher's page label when the EPUB has one, otherwise the location number. */

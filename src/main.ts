@@ -8,7 +8,7 @@ import type { AppliedBookChange } from "./reading-sync-model";
 import { OmniBookReaderSettingTab } from "./settings-ui";
 import { ReaderDataStore } from "./store";
 import type { ReaderSettings } from "./types";
-import { isValidCfi, normalizeVaultPath } from "./utils";
+import { isValidCfi, normalizeVaultPath, progressValue } from "./utils";
 
 function progressText(value: number): string {
   return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`;
@@ -54,6 +54,9 @@ class RecentReadingModal extends Modal {
     this.contentEl.empty();
   }
 }
+
+/** Book note property that holds the page last read. */
+const PROGRESS_PROPERTY = "Progress";
 
 export default class OmniBookReaderPlugin extends Plugin {
   store!: ReaderDataStore;
@@ -291,6 +294,23 @@ export default class OmniBookReaderPlugin extends Plugin {
 
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void> {
     return this.annotationDocuments.sync(input);
+  }
+
+  /**
+   * Stores the page being read in the book note's `Progress` property (a number when the page is one).
+   * Books without a note are skipped quietly; the property is only written when it changes.
+   */
+  async recordReadingProgress(sourceFile: TFile, page: string): Promise<void> {
+    const note = this.findBookNote(sourceFile);
+    if (!note) return;
+    const value = progressValue(page);
+    const current: unknown = this.app.metadataCache.getFileCache(note)?.frontmatter?.[PROGRESS_PROPERTY];
+    if (current === value) return;
+    // Let any pending highlight write to the same note finish first.
+    await this.annotationDocuments.flush();
+    await this.app.fileManager.processFrontMatter(note, (frontmatter: Record<string, unknown>) => {
+      frontmatter[PROGRESS_PROPERTY] = value;
+    });
   }
 
   /** The Markdown note named like the EPUB, which holds the book's highlights. */
