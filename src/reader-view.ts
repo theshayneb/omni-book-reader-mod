@@ -151,6 +151,9 @@ export interface ReaderPluginHost extends SettingsHost {
   recordReadingProgress(sourceFile: TFile, page: string): Promise<void>;
 }
 
+/** How often the page being read is saved to the book note's `Progress` property while a book is open. */
+const PROGRESS_SAVE_INTERVAL_MS = 3 * 60 * 1000;
+
 function iconButton(parent: HTMLElement, icon: string, label: string): HTMLButtonElement {
   const button = parent.createEl("button", {
     cls: "omni-book-reader-icon-button clickable-icon",
@@ -518,6 +521,7 @@ export class OmniBookReaderView extends FileView {
   /** Position received from another device; the next save keeps its timestamp so devices do not echo it back as newer. */
   private syncedPosition: { position: ReadingPosition; until: number } | null = null;
   private statsTimer: number | null = null;
+  private progressSaveTimer: number | null = null;
   private statsLastTick = 0;
   private statsLastActivity = 0;
   private sessionReadingMs = 0;
@@ -2284,7 +2288,7 @@ export class OmniBookReaderView extends FileView {
     this.uiState.close("selection");
   }
 
-  /** Writes the page being read into the book note when the tab closes or switches book; runs once per book. */
+  /** Writes the page being read into the book note: every few minutes, and when the tab closes or switches book. */
   private recordReadingProgress(file: TFile): void {
     const page = this.currentPageLabel();
     if (!page || !this.bookState) return;
@@ -2371,6 +2375,10 @@ export class OmniBookReaderView extends FileView {
     this.sessionReadingMs = 0;
     if (this.statsTimer !== null) window.clearInterval(this.statsTimer);
     this.statsTimer = window.setInterval(() => this.tickReadingStats(), 15000);
+    if (this.progressSaveTimer !== null) window.clearInterval(this.progressSaveTimer);
+    this.progressSaveTimer = window.setInterval(() => {
+      if (this.file) this.recordReadingProgress(this.file);
+    }, PROGRESS_SAVE_INTERVAL_MS);
     this.plugin.store.markChanged(0);
     this.updateReadingStatsText();
   }
@@ -2861,6 +2869,8 @@ export class OmniBookReaderView extends FileView {
     this.tickReadingStats();
     if (this.statsTimer !== null) window.clearInterval(this.statsTimer);
     this.statsTimer = null;
+    if (this.progressSaveTimer !== null) window.clearInterval(this.progressSaveTimer);
+    this.progressSaveTimer = null;
     this.statsLastTick = 0;
     this.statsLastActivity = 0;
     this.searchSession.cancel();
