@@ -2,6 +2,9 @@ import type { TAbstractFile, TFile, Vault } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import {
   AnnotationDocumentService,
+  applyFrontmatter,
+  notesFrontmatterError,
+  parseNotesFrontmatter,
   annotationFileName,
   bookNoteLink,
   buildCfiLink,
@@ -229,5 +232,48 @@ describe("annotation documents", () => {
     expect(bookNoteLink("Dune: Messiah", "Books/Dune Messiah - Frank Herbert.epub")).toBe("[[Dune Messiah - Frank Herbert]]");
     expect(bookNoteLink("Plain", undefined)).toBe("Plain");
     expect(renderAnnotationDocument("Dune", "", [], { sourcePath: "Books/Dune.epub" })).toMatch(/^# \[\[Dune\]\]\n/);
+  });
+
+  it("parses the notes file properties setting with book placeholders", () => {
+    const variables = { "book.title": "Dune: Messiah", "book.link": "[[Dune Messiah - Frank Herbert]]" };
+    expect(parseNotesFrontmatter("tags:\n  - book_notes\nbook: {{book.link}}\ntitle: \"{{book.title}}\"", variables)).toEqual({
+      tags: ["book_notes"],
+      book: "[[Dune Messiah - Frank Herbert]]",
+      title: "Dune: Messiah",
+    });
+    expect(parseNotesFrontmatter("  ")).toEqual({});
+    expect(notesFrontmatterError("tags: [book_notes")).not.toBe("");
+    expect(notesFrontmatterError("- just a list")).toContain("one per line");
+    expect(notesFrontmatterError("tags: book_notes")).toBe("");
+  });
+
+  it("merges configured properties into existing frontmatter", () => {
+    const body = "<!-- omni-book-reader:annotations:start -->\n# x\n<!-- omni-book-reader:annotations:end -->\n";
+    const properties = { tags: ["book_notes"], status: "reading" };
+    expect(applyFrontmatter(body, properties)).toBe(`---\ntags:\n  - book_notes\nstatus: reading\n---\n${body}`);
+
+    const existing = `---\nrating: 4\ntags:\n  - fiction\nstatus: done\n---\n${body}`;
+    expect(applyFrontmatter(existing, properties)).toBe(`---\nrating: 4\ntags:\n  - fiction\n  - book_notes\nstatus: reading\n---\n${body}`);
+
+    const unchanged = `---\ntags: [fiction, book_notes]\nstatus: reading\n---\n${body}`;
+    expect(applyFrontmatter(unchanged, properties)).toBe(unchanged);
+    expect(applyFrontmatter(`---\ntags: [broken\n---\n${body}`, properties)).toBe(`---\ntags: [broken\n---\n${body}`);
+    expect(applyFrontmatter(body, {})).toBe(body);
+  });
+
+  it("writes the configured properties into the notes file", async () => {
+    const { entries, typedVault, trash } = memoryVault();
+    const service = new AnnotationDocumentService(typedVault, trash);
+    const state = bookState([highlight()]);
+    await service.sync({
+      sourceFile, state, title: "Test Book", author: "Ann Author",
+      frontmatter: "tags:\n  - book_notes\n  - reading\nauthor: \"{{book.author}}\"\nbook: {{book.link}}",
+    });
+    expect(entries.get(documentPath)?.content).toMatch(
+      /^---\ntags:\n {2}- book_notes\n {2}- reading\nauthor: Ann Author\nbook: "\[\[Test Book\]\]"\n---\n<!-- omni-book-reader:annotations:start -->/,
+    );
+
+    await service.sync({ sourceFile, state, title: "Test Book", author: "Ann Author", frontmatter: "" });
+    expect(entries.get(documentPath)?.content).toMatch(/^---\ntags:/);
   });
 });

@@ -1,4 +1,4 @@
-import { normalizePath } from "obsidian";
+import { normalizePath, parseYaml, stringifyYaml } from "obsidian";
 import type { TAbstractFile, TFile, TFolder, Vault } from "obsidian";
 import { compare as compareCfi } from "foliate-js/epubcfi.js";
 import type {
@@ -7,13 +7,15 @@ import type {
   ExportTemplatePreset,
   ReaderHighlight,
 } from "./types";
+import { DEFAULT_SETTINGS } from "./defaults";
 
 const LEGACY_GENERATED_MARKER = "<!-- omni-book-reader:generated -->";
 
 /** Every book's highlights and notes are kept in one file, `<title> Notes.md`, in this vault folder. */
 export const ANNOTATION_FOLDER = "Media/Books/Attachments";
 
-const FRONTMATTER = "---\ntags:\n  - book_notes\n---\n";
+/** A leading YAML frontmatter block; group 1 is its YAML. */
+const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n?---[ \t]*(?:\r?\n|$)/;
 
 /** `annotations` is the current single-file block; the other two are only read when moving old files. */
 type AnnotationDocumentKind = "annotations" | "highlights" | "notes";
@@ -25,6 +27,8 @@ export interface AnnotationDocumentInput {
   author: string;
   exportTemplate?: ExportTemplatePreset;
   customExportTemplatePath?: string;
+  /** The "Notes file properties" setting (YAML); defaults to the `book_notes` tag. */
+  frontmatter?: string;
 }
 
 export interface AnnotationRenderOptions {
@@ -279,15 +283,84 @@ export function mergeManagedDocument(existing: string, kind: AnnotationDocumentK
   return `${existing.trimEnd()}\n\n${block}\n`;
 }
 
-/** Adds the `book_notes` tag frontmatter unless the file already has frontmatter of its own. */
-export function withFrontmatter(content: string): string {
-  return /^---\r?\n/.test(content) ? content : `${FRONTMATTER}${content}`;
+type FrontmatterProperties = Record<string, unknown>;
+
+function isProperties(value: unknown): value is FrontmatterProperties {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date);
 }
 
-/** What the person wrote in an annotation file, without the plugin's generated blocks or default frontmatter. */
+function fillPlaceholders(value: unknown, variables: Record<string, string>): unknown {
+  if (typeof value === "string") {
+    return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) => variables[key] ?? match);
+  }
+  if (Array.isArray(value)) return value.map((item) => fillPlaceholders(item, variables));
+  if (isProperties(value)) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillPlaceholders(item, variables)]));
+  }
+  return value;
+}
+
+/**
+ * Parses the "Notes file properties" setting. `{{book.*}}` placeholders are filled in text values;
+ * a value that is only a placeholder may be left unquoted. Throws when the YAML is invalid.
+ */
+export function parseNotesFrontmatter(yaml: string, variables: Record<string, string> = {}): FrontmatterProperties {
+  if (!yaml.trim()) return {};
+  const quoted = yaml.replace(/^(\s*(?:-\s+|[^\s:#][^:]*:\s+))(\{\{\s*[\w.]+\s*\}\})\s*$/gm, '$1"$2"');
+  const parsed: unknown = parseYaml(quoted);
+  if (parsed === null || parsed === undefined) return {};
+  if (!isProperties(parsed)) throw new Error("Write the properties as YAML, one per line, such as \"tags: book_notes\".");
+  return fillPlaceholders(parsed, variables) as FrontmatterProperties;
+}
+
+/** Why the setting's YAML cannot be used, or an empty string when it can. */
+export function notesFrontmatterError(yaml: string): string {
+  try {
+    parseNotesFrontmatter(yaml);
+    return "";
+  } catch (error) {
+    return error instanceof Error ? error.message : "This is not valid YAML.";
+  }
+}
+
+/**
+ * Sets the configured properties in a file's frontmatter, keeping any others. Configured values replace
+ * the file's, except lists (such as tags), which gain the configured items. Broken frontmatter is left alone.
+ */
+export function applyFrontmatter(content: string, properties: FrontmatterProperties): string {
+  if (!Object.keys(properties).length) return content;
+  const match = FRONTMATTER_BLOCK.exec(content);
+  let existing: FrontmatterProperties = {};
+  if (match) {
+    let parsed: unknown;
+    try {
+      parsed = parseYaml(match[1] ?? "");
+    } catch {
+      return content;
+    }
+    if (isProperties(parsed)) existing = parsed;
+    else if (parsed !== null && parsed !== undefined) return content;
+  }
+  const merged: FrontmatterProperties = { ...existing };
+  for (const [key, value] of Object.entries(properties)) {
+    const current = merged[key];
+    if (Array.isArray(value) && Array.isArray(current)) {
+      const known: unknown[] = current;
+      const added: unknown[] = value;
+      merged[key] = [...known, ...added.filter((item) => !known.some((entry) => JSON.stringify(entry) === JSON.stringify(item)))];
+    } else {
+      merged[key] = value;
+    }
+  }
+  if (match && JSON.stringify(merged) === JSON.stringify(existing)) return content;
+  const block = `---\n${stringifyYaml(merged).trimEnd()}\n---\n`;
+  return match ? `${block}${content.slice(match[0].length)}` : `${block}${content}`;
+}
+
+/** What the person wrote in an annotation file, without the plugin's generated blocks or its frontmatter. */
 export function userContent(content: string): string {
   if (content.trimStart().startsWith(LEGACY_GENERATED_MARKER)) return "";
-  let rest = content.startsWith(FRONTMATTER) ? content.slice(FRONTMATTER.length) : content;
+  let rest = content.replace(FRONTMATTER_BLOCK, "");
   for (const kind of ["annotations", "highlights", "notes"] as const) {
     const start = managedStart(kind);
     const end = managedEnd(kind);
@@ -334,6 +407,7 @@ export class AnnotationDocumentService {
           ...(customTemplate ? { customTemplate } : {}),
         };
         const markdown = renderAnnotationDocument(input.title, input.author, input.state.highlights, options);
+        const properties = this.frontmatterFor(input);
         const oldFiles = this.oldDocumentFiles(previous, path);
         const carried: string[] = [];
         for (const file of oldFiles) {
@@ -341,7 +415,7 @@ export class AnnotationDocumentService {
           if (text) carried.push(text);
         }
         await this.ensureFolder(parentPath(path));
-        await this.upsertManaged(path, markdown, carried);
+        await this.upsertManaged(path, markdown, carried, properties);
         input.state.annotationDocuments = {
           highlightPath: path,
           notePath: path,
@@ -425,13 +499,33 @@ export class AnnotationDocumentService {
     }
   }
 
-  private async upsertManaged(path: string, generated: string, carried: string[]): Promise<void> {
+  private frontmatterFor(input: AnnotationDocumentInput): FrontmatterProperties {
+    try {
+      return parseNotesFrontmatter(input.frontmatter ?? DEFAULT_SETTINGS.notesFrontmatter, {
+        "book.title": singleLine(input.title, "Untitled book"),
+        "book.author": singleLine(input.author),
+        "book.link": bookNoteLink(singleLine(input.title, "Untitled book"), input.sourceFile.path),
+        "book.filePath": normalizePath(input.sourceFile.path),
+      });
+    } catch (error) {
+      // The settings page rejects invalid YAML, so this only happens after hand-editing data.json.
+      console.warn("[Omni Book Reader] Ignoring invalid notes file properties", error);
+      return {};
+    }
+  }
+
+  private async upsertManaged(
+    path: string,
+    generated: string,
+    carried: string[],
+    properties: FrontmatterProperties,
+  ): Promise<void> {
     const existing = this.vault.getAbstractFileByPath(path);
     if (existing && !isFile(existing)) {
       throw new Error(`Could not write the annotation document because the path is not a file: ${path}`);
     }
     const current = isFile(existing) ? await this.vault.cachedRead(existing) : "";
-    let next = withFrontmatter(mergeManagedDocument(current, "annotations", generated));
+    let next = applyFrontmatter(mergeManagedDocument(current, "annotations", generated), properties);
     for (const text of carried) {
       if (!next.includes(text)) next = `${next.trimEnd()}\n\n${text}\n`;
     }

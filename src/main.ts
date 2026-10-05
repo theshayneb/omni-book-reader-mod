@@ -293,6 +293,7 @@ export default class OmniBookReaderPlugin extends Plugin {
       ...input,
       exportTemplate: this.store.settings.exportTemplate,
       customExportTemplatePath: this.store.settings.customExportTemplatePath,
+      frontmatter: this.store.settings.notesFrontmatter,
     });
   }
 

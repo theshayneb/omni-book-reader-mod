@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   hasSeenReaderTutorial: false,
   syncEnabled: true,
   syncFolder: "Utilities/Omni Book Reader Mod/Sync",
+  notesFrontmatter: "tags:\n  - book_notes",
 };
 
 const themes = new Set(["auto", "light", "dark", "sepia"]);
@@ -95,6 +96,9 @@ export function normalizeSettings(value: unknown): ReaderSettings {
       ? input.hasSeenReaderTutorial : DEFAULT_SETTINGS.hasSeenReaderTutorial,
     syncEnabled: typeof input.syncEnabled === "boolean" ? input.syncEnabled : DEFAULT_SETTINGS.syncEnabled,
     syncFolder: normalizeSyncFolder(input.syncFolder),
+    notesFrontmatter: typeof input.notesFrontmatter === "string"
+      ? input.notesFrontmatter.replace(/\r\n?/g, "\n").trimEnd().slice(0, 5000)
+      : DEFAULT_SETTINGS.notesFrontmatter,
   };
 }
 

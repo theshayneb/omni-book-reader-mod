@@ -39,6 +39,8 @@ export interface ReaderSettings {
   hasSeenReaderTutorial: boolean;
   syncEnabled: boolean;
   syncFolder: string;
+  /** YAML properties applied to every book's highlights-and-notes file; empty leaves frontmatter alone. */
+  notesFrontmatter: string;
 }
 
 export interface SourceSignature {

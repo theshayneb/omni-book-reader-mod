@@ -1,10 +1,14 @@
 import { App, Modal, Plugin, PluginSettingTab, Setting } from "obsidian";
 import type { SettingDefinitionItem } from "obsidian";
+import { notesFrontmatterError } from "./annotation-documents";
 import { DEFAULT_SETTINGS } from "./defaults";
 import type { ReaderSettings } from "./types";
 
 const SYNC_DESCRIPTION = "Keep reading progress, highlights, notes, bookmarks, and reading time in sync between your devices. "
   + "Each device writes its own file in the sync folder. With Obsidian Sync, turn on \"Sync all other types\" so these .json files are included.";
+const NOTES_FRONTMATTER_DESCRIPTION = "YAML properties for each book's highlights and notes file, applied whenever it is updated. "
+  + "Values here replace the file's; lists such as tags are added to. "
+  + "Supports {{book.title}}, {{book.author}}, {{book.link}}, and {{book.filePath}}. Leave empty to leave the frontmatter alone.";
 const SYNC_FOLDER_DESCRIPTION = "Vault folder for the per-device sync files. Use the same folder on every device.";
 
 export interface SettingsHost {
@@ -196,6 +200,22 @@ function renderSettings(
       .onChange((exportTemplate) => host.updateReaderSettings({
         exportTemplate: exportTemplate as ReaderSettings["exportTemplate"],
       })));
+
+  const frontmatterSetting = new Setting(container)
+    .setName("Notes file properties")
+    .setDesc(NOTES_FRONTMATTER_DESCRIPTION);
+  frontmatterSetting.addTextArea((text) => {
+    text.inputEl.rows = 5;
+    text
+      .setPlaceholder(DEFAULT_SETTINGS.notesFrontmatter)
+      .setValue(get().notesFrontmatter)
+      .onChange((notesFrontmatter) => {
+        const error = notesFrontmatterError(notesFrontmatter);
+        frontmatterSetting.setDesc(error || NOTES_FRONTMATTER_DESCRIPTION);
+        frontmatterSetting.descEl.toggleClass("mod-warning", Boolean(error));
+        if (!error) host.updateReaderSettings({ notesFrontmatter });
+      });
+  });
 
   new Setting(container)
     .setName("Custom export template")
@@ -425,6 +445,17 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
             },
           },
           {
+            name: "Notes file properties",
+            desc: NOTES_FRONTMATTER_DESCRIPTION,
+            control: {
+              type: "textarea",
+              key: "notesFrontmatter",
+              rows: 5,
+              placeholder: DEFAULT_SETTINGS.notesFrontmatter,
+              validate: (value: string) => notesFrontmatterError(value),
+            },
+          },
+          {
             name: "Custom export template",
             desc: "Used when Custom template is selected. Enter a Markdown path in the vault. Supports {{document.title}}, {{document.kind}}, {{book.title}}, {{book.author}}, {{book.filePath}}, {{book.link}}, {{export.date}}, and {{entries}}.",
             control: {
@@ -475,6 +506,7 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "pageMargin": return settings.pageMargin;
       case "exportTemplate": return settings.exportTemplate;
       case "customExportTemplatePath": return settings.customExportTemplatePath;
+      case "notesFrontmatter": return settings.notesFrontmatter;
       case "syncEnabled": return settings.syncEnabled;
       case "syncFolder": return settings.syncFolder;
       default: return undefined;
@@ -533,6 +565,9 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
         return;
       case "customExportTemplatePath":
         if (typeof value === "string") this.host.updateReaderSettings({ customExportTemplatePath: value });
+        return;
+      case "notesFrontmatter":
+        if (typeof value === "string" && !notesFrontmatterError(value)) this.host.updateReaderSettings({ notesFrontmatter: value });
         return;
       case "syncEnabled":
         if (typeof value === "boolean") this.host.updateReaderSettings({ syncEnabled: value });
