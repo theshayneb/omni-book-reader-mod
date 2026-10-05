@@ -1,42 +1,29 @@
-import { normalizePath, parseYaml, stringifyYaml } from "obsidian";
+import { normalizePath } from "obsidian";
 import type { TAbstractFile, TFile, TFolder, Vault } from "obsidian";
 import { compare as compareCfi } from "foliate-js/epubcfi.js";
-import type {
-  AnnotationDocuments,
-  BookState,
-  ExportTemplatePreset,
-  ReaderHighlight,
-} from "./types";
-import { DEFAULT_SETTINGS } from "./defaults";
+import type { AnnotationDocuments, BookState, ReaderHighlight } from "./types";
 
 const LEGACY_GENERATED_MARKER = "<!-- omni-book-reader:generated -->";
 
-/** Every book's highlights and notes are kept in one file, `<title> Notes.md`, in this vault folder. */
+/** Marker comments from the generated files of earlier versions; only read when moving those files. */
+type AnnotationDocumentKind = "annotations" | "highlights" | "notes";
+
+/** Where earlier versions kept a separate `<title> Notes.md` file per book. */
 export const ANNOTATION_FOLDER = "Media/Books/Attachments";
 
-/** A leading YAML frontmatter block; group 1 is its YAML. */
-const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n?---[ \t]*(?:\r?\n|$)/;
+/** The callout in each book note that holds the highlights. */
+export const HIGHLIGHTS_CALLOUT = "> > > [!quotenew] Quotes & References";
+/** Every highlight is one line under the callout, starting with this. */
+export const HIGHLIGHT_LINE_PREFIX = "> > - ";
 
-/** `annotations` is the current single-file block; the other two are only read when moving old files. */
-type AnnotationDocumentKind = "annotations" | "highlights" | "notes";
+/** A leading YAML frontmatter block. */
+const FRONTMATTER_BLOCK = /^---\r?\n[\s\S]*?\r?\n?---[ \t]*(?:\r?\n|$)/;
 
 export interface AnnotationDocumentInput {
   sourceFile: TFile;
   state: BookState;
   title: string;
   author: string;
-  exportTemplate?: ExportTemplatePreset;
-  customExportTemplatePath?: string;
-  /** The "Notes file properties" setting (YAML); defaults to the `book_notes` tag. */
-  frontmatter?: string;
-}
-
-export interface AnnotationRenderOptions {
-  sourcePath?: string;
-  vaultName?: string;
-  preset?: ExportTemplatePreset;
-  customTemplate?: string;
-  exportedAt?: number;
 }
 
 function isFile(value: TAbstractFile | null): value is TFile {
@@ -59,24 +46,14 @@ function singleLine(value: string, fallback = ""): string {
   return value.replace(/\s+/g, " ").trim() || fallback;
 }
 
-function quote(value: string): string {
-  return value.replace(/\r\n?/g, "\n").split("\n").map((line) => `> ${line}`).join("\n");
-}
-
 /** Turns a highlight tag into an Obsidian tag: spaces become `_` and characters tags cannot hold are dropped. */
 export function toObsidianTag(tag: string): string {
   const body = tag.trim().replace(/^#+/, "").replace(/\s+/g, "_").replace(/[^\p{L}\p{N}_/-]/gu, "");
   return body ? `#${body}` : "";
 }
 
-/** Every highlighted passage ends with this tag in the annotation file. */
+/** Every highlighted passage is followed by this tag. */
 const QUOTE_TAG = "#quote";
-
-/** The highlighted text with `#quote`, then the highlight's own tags, at the end of its last line. */
-function taggedText(text: string, highlight: ReaderHighlight): string {
-  const tags = tagText(highlight);
-  return `${text.replace(/\r\n?/g, "\n").trimEnd()} ${QUOTE_TAG}${tags ? ` ${tags}` : ""}`;
-}
 
 function tagText(highlight: ReaderHighlight): string {
   const tags = new Set(highlight.tags.map(toObsidianTag).filter(Boolean));
@@ -84,11 +61,7 @@ function tagText(highlight: ReaderHighlight): string {
   return Array.from(tags).join(" ");
 }
 
-function pageText(highlight: ReaderHighlight): string {
-  return highlight.page ? `Page ${singleLine(highlight.page)}` : "";
-}
-
-/** Builds the vault file name from the EPUB title, dropping characters that file names and links cannot hold. */
+/** Builds a vault file name from the EPUB title, dropping characters that file names and links cannot hold. */
 export function annotationFileName(title: string, fallback: string): string {
   const clean = (value: string): string => value
     .replace(/[\\/:*?"<>|#^[\]\p{Cc}]/gu, " ")
@@ -101,8 +74,10 @@ export function annotationFileName(title: string, fallback: string): string {
   return clean(title) || clean(fallback) || "Untitled book";
 }
 
-export function annotationDocumentPath(title: string, sourceFile: TFile): string {
-  return normalizePath(`${ANNOTATION_FOLDER}/${annotationFileName(title, sourceFile.basename)} Notes.md`);
+/** The separate notes files earlier versions wrote for a book (`<title> Notes.md`, and `<title>-Notes.md` before that). */
+function companionPaths(title: string, sourceFile: TFile): string[] {
+  const name = annotationFileName(title, sourceFile.basename);
+  return [`${name} Notes.md`, `${name}-Notes.md`].map((file) => normalizePath(`${ANNOTATION_FOLDER}/${file}`));
 }
 
 function comparePosition(left: ReaderHighlight, right: ReaderHighlight): number {
@@ -116,21 +91,11 @@ function comparePosition(left: ReaderHighlight, right: ReaderHighlight): number 
   return left.createdAt - right.createdAt || left.id.localeCompare(right.id);
 }
 
-/** Highlights in book order, grouped under the chapter they belong to. */
-function chapterGroups(highlights: ReaderHighlight[]): Array<{ chapter: string; highlights: ReaderHighlight[] }> {
-  const groups: Array<{ chapter: string; highlights: ReaderHighlight[] }> = [];
-  for (const highlight of [...highlights].sort(comparePosition)) {
-    const chapter = singleLine(highlight.chapter, "Untitled chapter");
-    const last = groups[groups.length - 1];
-    if (last?.chapter === chapter) last.highlights.push(highlight);
-    else groups.push({ chapter, highlights: [highlight] });
-  }
-  return groups;
-}
-
 /** `obsidian://` action for links back into a book. Separate from the original plugin's `omni-book-reader`. */
 export const PROTOCOL_ACTION = "omni-book-reader-mod";
 const PROTOCOL_PREFIXES = [`obsidian://${PROTOCOL_ACTION}?`, "obsidian://omni-book-reader?"];
+/** A Markdown link made by this plugin (or, from before it became separate, by the original one). */
+const BOOK_LINK = /\]\(obsidian:\/\/omni-book-reader(?:-mod)?\?[^)\s]*\)/;
 
 /** True for links made by this plugin or, from before it became separate, by the original one. */
 export function isBookLink(href: string): boolean {
@@ -150,106 +115,75 @@ export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string)
   return `obsidian://${PROTOCOL_ACTION}?${params}`;
 }
 
-function sourceLink(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  if (!options.sourcePath) return "";
-  return `[Open in book](${buildCfiLink(options.vaultName ?? "", options.sourcePath, highlight.cfi)})`;
+/**
+ * One highlight as a line under the book note's callout:
+ * `> > - passage #quote #tags *-- note* (Chapter, [p. 14](link))`.
+ * The link back into the book is what marks the line as the plugin's.
+ */
+export function renderHighlightLine(highlight: ReaderHighlight, sourcePath: string, vaultName = ""): string {
+  const tags = tagText(highlight);
+  const note = singleLine(highlight.note ?? "");
+  const chapter = singleLine(highlight.chapter);
+  const linkText = highlight.page ? `p. ${singleLine(highlight.page)}` : "Open in book";
+  const location = [
+    chapter && chapter !== "Untitled chapter" ? chapter : "",
+    `[${linkText}](${buildCfiLink(vaultName, sourcePath, highlight.cfi)})`,
+  ].filter(Boolean).join(", ");
+  return [
+    `${HIGHLIGHT_LINE_PREFIX}${singleLine(highlight.text, "(empty excerpt)")}`,
+    QUOTE_TAG,
+    tags,
+    note ? `*-- ${note}*` : "",
+    `(${location})`,
+  ].filter(Boolean).join(" ");
 }
 
-function entryDetails(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  return [pageText(highlight), dateStamp(highlight.createdAt), sourceLink(highlight, options)]
-    .filter(Boolean)
-    .join(" · ");
+/** The book's highlights as callout lines, in book order. */
+export function renderHighlightLines(highlights: ReaderHighlight[], sourcePath: string, vaultName = ""): string[] {
+  return [...highlights].sort(comparePosition).map((highlight) => renderHighlightLine(highlight, sourcePath, vaultName));
 }
 
-/** A highlight's note as one Markdown bullet; extra lines are indented so they stay inside it. */
-export function noteBullet(note: string, indent = ""): string {
-  const lines = note.replace(/\r\n?/g, "\n").split("\n")
-    .map((line) => line.trim().replace(/^[-*+]\s+/, ""))
-    .filter(Boolean);
-  return lines.map((line, index) => `${indent}${index ? "  " : "- "}${line}`).join("\n");
+function isPluginLine(line: string): boolean {
+  return BOOK_LINK.test(line);
 }
 
-function renderClassicEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [quote(taggedText(highlight.text, highlight)), ""];
-  const note = highlight.note?.trim();
-  if (note) lines.push(noteBullet(note), "");
-  lines.push(entryDetails(highlight, options));
-  return lines.join("\n");
-}
-
-function renderCompactEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [`- ${taggedText(singleLine(highlight.text, "(empty excerpt)"), highlight)}`];
-  const note = highlight.note?.trim();
-  if (note) lines.push(noteBullet(note, "  "));
-  lines.push(`  - ${entryDetails(highlight, options)}`);
-  return lines.join("\n");
-}
-
-function renderCalloutEntry(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
-  const lines = [`> [!quote]${highlight.page ? ` ${pageText(highlight)}` : ""}`, quote(taggedText(highlight.text, highlight))];
-  const note = highlight.note?.trim();
-  if (note) lines.push(">", quote(noteBullet(note)));
-  lines.push(">", `> ${entryDetails(highlight, options)}`);
-  return lines.join("\n");
-}
-
-function renderEntries(highlights: ReaderHighlight[], options: AnnotationRenderOptions): string {
-  if (!highlights.length) return "_No highlights yet._";
-  const preset = options.preset ?? "classic";
-  const render = preset === "compact"
-    ? renderCompactEntry
-    : preset === "callout"
-      ? renderCalloutEntry
-      : renderClassicEntry;
-  const separator = preset === "compact" ? "\n" : "\n\n";
-  return chapterGroups(highlights)
-    .map((group) => `## ${group.chapter}\n\n${group.highlights.map((item) => render(item, options)).join(separator)}`)
-    .join("\n\n");
-}
-
-function applyDocumentTemplate(template: string, variables: Record<string, string>): string {
-  let output = template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) => variables[key] ?? match);
-  if (!/\{\{\s*entries\s*\}\}/.test(template)) output = `${output.trimEnd()}\n\n${variables.entries}`;
-  return `${output.trim() || variables.entries}\n`;
+/** A line that continues the callout's list: another `> > -` item or an indented continuation of one. */
+function isCalloutListLine(line: string): boolean {
+  return /^> > (?:-|\s{2,}\S)/.test(line);
 }
 
 /**
- * Wikilink to the book's own note, the Markdown file named like the EPUB
- * (`Dune - Frank Herbert.epub` → `[[Dune - Frank Herbert]]`). Falls back to the title without a source path.
+ * Puts the plugin's highlight lines under the highlights callout, leaving every other line alone.
+ * The plugin's existing lines (those with a link back into a book) are replaced in place, in book order;
+ * extra lines go after the last one, or at the end of the callout's list. A missing callout is added at the end.
  */
-export function bookNoteLink(title: string, sourcePath?: string): string {
-  const fileName = normalizePath(sourcePath ?? "").split("/").pop() ?? "";
-  const noteName = fileName.replace(/\.epub$/i, "").replace(/[[\]|#^]/g, "").trim();
-  return noteName ? `[[${noteName}]]` : title;
-}
-
-/** Renders the managed part of a book's annotation file: every highlight, with its note, grouped by chapter. */
-export function renderAnnotationDocument(
-  title: string,
-  author: string,
-  highlights: ReaderHighlight[],
-  options: AnnotationRenderOptions = {},
-): string {
-  const bookTitle = singleLine(title, "Untitled book");
-  const entries = renderEntries(highlights, options);
-  const normalizedAuthor = singleLine(author);
-  const bookLink = bookNoteLink(bookTitle, options.sourcePath);
-  const builtIn = [
-    `# ${bookLink}`,
-    "",
-    entries,
-  ].join("\n");
-  if (!options.customTemplate?.trim()) return `${builtIn.trimEnd()}\n`;
-  return applyDocumentTemplate(options.customTemplate, {
-    "document.title": "Highlights and notes",
-    "document.kind": "annotations",
-    "book.title": bookTitle,
-    "book.author": normalizedAuthor,
-    "book.link": bookLink,
-    "book.filePath": normalizePath(options.sourcePath ?? ""),
-    "export.date": dateStamp(options.exportedAt ?? Date.now()),
-    entries,
+export function updateHighlightsCallout(content: string, lines: string[]): string {
+  const all = content.replace(/\r\n?/g, "\n").split("\n");
+  const header = all.findIndex((line) => line.trim() === HIGHLIGHTS_CALLOUT.trim());
+  if (header < 0) {
+    if (!lines.length) return content;
+    const body = content.replace(/\s+$/, "");
+    return `${body}${body ? "\n\n" : ""}${[HIGHLIGHTS_CALLOUT, ...lines].join("\n")}\n`;
+  }
+  let end = header + 1;
+  while (end < all.length && isCalloutListLine(all[end] ?? "")) end += 1;
+  const region = all.slice(header + 1, end);
+  const slots = region.flatMap((line, index) => isPluginLine(line) ? [index] : []);
+  const lastSlot = slots[slots.length - 1];
+  const next: string[] = [];
+  let used = 0;
+  region.forEach((line, index) => {
+    if (!isPluginLine(line)) {
+      next.push(line);
+      return;
+    }
+    if (used < lines.length) next.push(lines[used] ?? "");
+    used += 1;
+    if (index === lastSlot) next.push(...lines.slice(used));
   });
+  if (lastSlot === undefined) next.push(...lines);
+  const updated = [...all.slice(0, header + 1), ...next, ...all.slice(end)].join("\n");
+  return updated === content.replace(/\r\n?/g, "\n") ? content : updated;
 }
 
 function managedStart(kind: AnnotationDocumentKind): string {
@@ -260,104 +194,12 @@ function managedEnd(kind: AnnotationDocumentKind): string {
   return `<!-- omni-book-reader:${kind}:end -->`;
 }
 
-export function mergeManagedDocument(existing: string, kind: AnnotationDocumentKind, generated: string): string {
-  const start = managedStart(kind);
-  const end = managedEnd(kind);
-  const safeGenerated = generated.replace(/<!--\s*omni-book-reader:/gi, "&lt;!-- omni-book-reader:");
-  const block = `${start}\n${safeGenerated.trim()}\n${end}`;
-  const startIndex = existing.indexOf(start);
-  const endIndex = startIndex >= 0 ? existing.indexOf(end, startIndex + start.length) : -1;
-  const orphanEndIndex = existing.indexOf(end);
-  if ((startIndex >= 0 && endIndex < 0) || (startIndex < 0 && orphanEndIndex >= 0)) {
-    throw new Error(`The ${kind} managed-block markers in the annotation document are incomplete. Fix or remove the markers and try again.`);
-  }
-  if (startIndex >= 0 && endIndex >= 0) {
-    if (existing.indexOf(start, startIndex + start.length) >= 0 || existing.indexOf(end, endIndex + end.length) >= 0) {
-      throw new Error(`The annotation document contains more than one ${kind} managed block. Keep only one pair of markers.`);
-    }
-    const merged = `${existing.slice(0, startIndex)}${block}${existing.slice(endIndex + end.length)}`;
-    return merged.endsWith("\n") ? merged : `${merged}\n`;
-  }
-  if (existing.trimStart().startsWith(LEGACY_GENERATED_MARKER)) return `${block}\n`;
-  if (!existing.trim()) return `${block}\n`;
-  return `${existing.trimEnd()}\n\n${block}\n`;
+/** True for a file the plugin generated in an earlier version; nothing else is ever moved or trashed. */
+function isGeneratedDocument(content: string): boolean {
+  return content.includes("<!-- omni-book-reader:");
 }
 
-type FrontmatterProperties = Record<string, unknown>;
-
-function isProperties(value: unknown): value is FrontmatterProperties {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date);
-}
-
-function fillPlaceholders(value: unknown, variables: Record<string, string>): unknown {
-  if (typeof value === "string") {
-    return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) => variables[key] ?? match);
-  }
-  if (Array.isArray(value)) return value.map((item) => fillPlaceholders(item, variables));
-  if (isProperties(value)) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillPlaceholders(item, variables)]));
-  }
-  return value;
-}
-
-/**
- * Parses the "Notes file properties" setting. `{{book.*}}` placeholders are filled in text values;
- * a value that is only a placeholder may be left unquoted. Throws when the YAML is invalid.
- */
-export function parseNotesFrontmatter(yaml: string, variables: Record<string, string> = {}): FrontmatterProperties {
-  if (!yaml.trim()) return {};
-  const quoted = yaml.replace(/^(\s*(?:-\s+|[^\s:#][^:]*:\s+))(\{\{\s*[\w.]+\s*\}\})\s*$/gm, '$1"$2"');
-  const parsed: unknown = parseYaml(quoted);
-  if (parsed === null || parsed === undefined) return {};
-  if (!isProperties(parsed)) throw new Error("Write the properties as YAML, one per line, such as \"tags: book_notes\".");
-  return fillPlaceholders(parsed, variables) as FrontmatterProperties;
-}
-
-/** Why the setting's YAML cannot be used, or an empty string when it can. */
-export function notesFrontmatterError(yaml: string): string {
-  try {
-    parseNotesFrontmatter(yaml);
-    return "";
-  } catch (error) {
-    return error instanceof Error ? error.message : "This is not valid YAML.";
-  }
-}
-
-/**
- * Sets the configured properties in a file's frontmatter, keeping any others. Configured values replace
- * the file's, except lists (such as tags), which gain the configured items. Broken frontmatter is left alone.
- */
-export function applyFrontmatter(content: string, properties: FrontmatterProperties): string {
-  if (!Object.keys(properties).length) return content;
-  const match = FRONTMATTER_BLOCK.exec(content);
-  let existing: FrontmatterProperties = {};
-  if (match) {
-    let parsed: unknown;
-    try {
-      parsed = parseYaml(match[1] ?? "");
-    } catch {
-      return content;
-    }
-    if (isProperties(parsed)) existing = parsed;
-    else if (parsed !== null && parsed !== undefined) return content;
-  }
-  const merged: FrontmatterProperties = { ...existing };
-  for (const [key, value] of Object.entries(properties)) {
-    const current = merged[key];
-    if (Array.isArray(value) && Array.isArray(current)) {
-      const known: unknown[] = current;
-      const added: unknown[] = value;
-      merged[key] = [...known, ...added.filter((item) => !known.some((entry) => JSON.stringify(entry) === JSON.stringify(item)))];
-    } else {
-      merged[key] = value;
-    }
-  }
-  if (match && JSON.stringify(merged) === JSON.stringify(existing)) return content;
-  const block = `---\n${stringifyYaml(merged).trimEnd()}\n---\n`;
-  return match ? `${block}${content.slice(match[0].length)}` : `${block}${content}`;
-}
-
-/** What the person wrote in an annotation file, without the plugin's generated blocks or its frontmatter. */
+/** What the person wrote in an earlier generated file, without the plugin's blocks or its frontmatter. */
 export function userContent(content: string): string {
   if (content.trimStart().startsWith(LEGACY_GENERATED_MARKER)) return "";
   let rest = content.replace(FRONTMATTER_BLOCK, "");
@@ -377,10 +219,6 @@ function parentPath(path: string): string {
   return separator < 0 ? "" : normalized.slice(0, separator);
 }
 
-function joinPath(...parts: string[]): string {
-  return normalizePath(parts.filter(Boolean).join("/"));
-}
-
 export class AnnotationDocumentService {
   private writeChain: Promise<void> = Promise.resolve();
 
@@ -388,37 +226,31 @@ export class AnnotationDocumentService {
     private readonly vault: Vault,
     /** Should be `app.fileManager.trashFile`, which respects the person's deletion preference. */
     private readonly trashFile: (file: TAbstractFile) => Promise<void>,
+    /** Finds the Markdown note named like the EPUB (`Dune.epub` → `Dune.md`). */
+    private readonly findBookNote: (sourceFile: TFile) => TFile | null,
   ) {}
 
   sync(input: AnnotationDocumentInput): Promise<void> {
     const job = this.writeChain
       .catch(() => undefined)
       .then(async () => {
-        const path = annotationDocumentPath(input.title, input.sourceFile);
+        const note = this.findBookNote(input.sourceFile);
+        if (!note) {
+          throw new Error(`No note named "${input.sourceFile.basename}" was found to hold this book's highlights.`);
+        }
         const previous = input.state.annotationDocuments;
-        const preset = input.exportTemplate ?? "classic";
-        const customTemplate = preset === "custom"
-          ? await this.loadCustomTemplate(input.customExportTemplatePath, path)
-          : "";
-        const options: AnnotationRenderOptions = {
-          sourcePath: input.sourceFile.path,
-          vaultName: this.vault.getName(),
-          preset,
-          ...(customTemplate ? { customTemplate } : {}),
-        };
-        const markdown = renderAnnotationDocument(input.title, input.author, input.state.highlights, options);
-        const properties = this.frontmatterFor(input);
-        const oldFiles = this.oldDocumentFiles(previous, path);
-        const carried: string[] = [];
+        const lines = renderHighlightLines(input.state.highlights, input.sourceFile.path, this.vault.getName());
+        const oldFiles = await this.oldDocumentFiles(input, previous, note.path);
+        const current = await this.vault.cachedRead(note);
+        let next = updateHighlightsCallout(current, lines);
         for (const file of oldFiles) {
           const text = userContent(await this.vault.cachedRead(file));
-          if (text) carried.push(text);
+          if (text && !next.includes(text)) next = `${next.trimEnd()}\n\n${text}\n`;
         }
-        await this.ensureFolder(parentPath(path));
-        await this.upsertManaged(path, markdown, carried, properties);
+        if (next !== current) await this.vault.modify(note, next);
         input.state.annotationDocuments = {
-          highlightPath: path,
-          notePath: path,
+          highlightPath: note.path,
+          notePath: note.path,
           createdDate: previous?.createdDate || dateStamp(Date.now()),
         };
         await this.removeOldDocuments(oldFiles);
@@ -455,25 +287,22 @@ export class AnnotationDocumentService {
     return job;
   }
 
-  private async loadCustomTemplate(path: string | undefined, documentPath: string): Promise<string> {
-    const normalized = normalizePath(path?.trim() ?? "");
-    if (!normalized) throw new Error("No custom export template path is set.");
-    if (normalized === documentPath) {
-      throw new Error("The custom template cannot be this book's highlights and notes file.");
-    }
-    const file = this.vault.getAbstractFileByPath(normalized);
-    if (!isFile(file) || file.extension.toLowerCase() !== "md") throw new Error(`Custom export template not found: ${normalized}`);
-    return this.vault.cachedRead(file);
-  }
-
-  /** Files from the old two-file layout (or an earlier title) that should be folded into `path`. */
-  private oldDocumentFiles(previous: AnnotationDocuments | undefined, path: string): TFile[] {
-    if (!previous) return [];
+  /** Generated files from earlier versions (Highlight/Note pairs, `<title> Notes.md`) to fold into the book note. */
+  private async oldDocumentFiles(
+    input: AnnotationDocumentInput,
+    previous: AnnotationDocuments | undefined,
+    notePath: string,
+  ): Promise<TFile[]> {
+    const candidates = new Set([
+      ...(previous ? [previous.highlightPath, previous.notePath] : []),
+      ...companionPaths(input.title, input.sourceFile),
+    ].map((path) => normalizePath(path)));
+    candidates.delete(normalizePath(notePath));
     const files: TFile[] = [];
-    for (const oldPath of new Set([previous.highlightPath, previous.notePath])) {
-      if (normalizePath(oldPath) === path) continue;
-      const file = this.vault.getAbstractFileByPath(normalizePath(oldPath));
-      if (isFile(file) && file.extension.toLowerCase() === "md") files.push(file);
+    for (const path of candidates) {
+      const file = this.vault.getAbstractFileByPath(path);
+      if (!isFile(file) || file.extension.toLowerCase() !== "md") continue;
+      if (isGeneratedDocument(await this.vault.cachedRead(file))) files.push(file);
     }
     return files;
   }
@@ -486,50 +315,5 @@ export class AnnotationDocumentService {
       const folder = this.vault.getAbstractFileByPath(folderPath);
       if (isFolder(folder) && !folder.children.length) await this.trashFile(folder);
     }
-  }
-
-  private async ensureFolder(path: string): Promise<void> {
-    if (!path) return;
-    let current = "";
-    for (const segment of normalizePath(path).split("/")) {
-      current = joinPath(current, segment);
-      const existing = this.vault.getAbstractFileByPath(current);
-      if (isFile(existing)) throw new Error(`Could not create the notes folder because a file already exists at: ${current}`);
-      if (!existing) await this.vault.createFolder(current);
-    }
-  }
-
-  private frontmatterFor(input: AnnotationDocumentInput): FrontmatterProperties {
-    try {
-      return parseNotesFrontmatter(input.frontmatter ?? DEFAULT_SETTINGS.notesFrontmatter, {
-        "book.title": singleLine(input.title, "Untitled book"),
-        "book.author": singleLine(input.author),
-        "book.link": bookNoteLink(singleLine(input.title, "Untitled book"), input.sourceFile.path),
-        "book.filePath": normalizePath(input.sourceFile.path),
-      });
-    } catch (error) {
-      // The settings page rejects invalid YAML, so this only happens after hand-editing data.json.
-      console.warn("[Omni Book Reader] Ignoring invalid notes file properties", error);
-      return {};
-    }
-  }
-
-  private async upsertManaged(
-    path: string,
-    generated: string,
-    carried: string[],
-    properties: FrontmatterProperties,
-  ): Promise<void> {
-    const existing = this.vault.getAbstractFileByPath(path);
-    if (existing && !isFile(existing)) {
-      throw new Error(`Could not write the annotation document because the path is not a file: ${path}`);
-    }
-    const current = isFile(existing) ? await this.vault.cachedRead(existing) : "";
-    let next = applyFrontmatter(mergeManagedDocument(current, "annotations", generated), properties);
-    for (const text of carried) {
-      if (!next.includes(text)) next = `${next.trimEnd()}\n\n${text}\n`;
-    }
-    if (!isFile(existing)) await this.vault.create(path, next);
-    else if (next !== current) await this.vault.modify(existing, next);
   }
 }

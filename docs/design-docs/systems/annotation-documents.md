@@ -1,31 +1,33 @@
 # Annotation documents
 
 Status: Accepted
-Date: 2026-10-03
+Date: 2026-10-05 (supersedes the 2026-10-03 one-file-per-book design)
 
 ## Context
 
-Earlier versions wrote two Markdown files per book, `<book>-Highlight-<date>.md` and `<book>-Note-<date>.md`, in a folder next to the EPUB, in the order highlights were made, with each highlight's color and style. The owner keeps book notes under `Media/Books/` and wanted one file per book alongside them, in book order, with page numbers, real tags and a `book_notes` tag, and no colors.
+Versions 1.1.1 to 1.1.10 wrote each book's highlights to a separate generated file, `Media/Books/Attachments/<title> Notes.md` (earlier `<title>-Notes.md`, and before that a Highlight/Note pair next to the EPUB). The owner keeps one note per book, named exactly like the EPUB, and wanted the highlights inside that note under an existing callout, next to quotes and references they add by hand.
 
 ## Decision
 
-- **Location:** one file per book at `Media/Books/Attachments/<title> Notes.md` (`ANNOTATION_FOLDER` in `src/annotation-documents.ts`). `<title>` is the EPUB metadata title with `\ / : * ? " < > | # ^ [ ]` and control characters removed, falling back to the EPUB file name. The path is recomputed on every write; `BookState.annotationDocuments` records where the file was last written, with `highlightPath` and `notePath` both set to it.
-- **Frontmatter:** set by the `notesFrontmatter` setting ("Notes file properties", YAML, default `tags: [book_notes]`). On every write the configured properties are merged into the file's frontmatter: scalar values replace the file's, list values gain the configured items, and other properties are kept. `{{book.title}}`, `{{book.author}}`, `{{book.link}}` and `{{book.filePath}}` are filled in text values; a value that is only a placeholder may be unquoted. An empty setting leaves frontmatter alone, invalid YAML is rejected by the settings page (and ignored if hand-edited into `data.json`), and a file whose own frontmatter does not parse is not touched. Removing a property from the setting does not remove it from existing files.
-- **Content:** one managed block, `<!-- omni-book-reader:annotations:start/end -->`, headed `# [[<EPUB file name>]]`, a link to the book's own note (the Markdown file named like the EPUB, whose name already includes the author), then a `##` heading per chapter. Entries are sorted by spine index, then by CFI (`foliate-js/epubcfi.js` `compare`), falling back to creation time. Each entry shows the quote with `#quote` and then the highlight's own tags at the end of its last line (a highlight tag `quote` is not repeated), its note if any as a single bullet (further lines indented inside it), then `Page N · date · [Open in book](…)`. Colors and styles are not exported. Tags become Obsidian tags: spaces turn into `_`, and characters tags cannot contain are dropped.
-- **Pages:** `ReaderHighlight.page` stores the page shown in the reader when the highlight was made: the publisher page-list label if the EPUB has one, otherwise Foliate's location number (the same number the reader shows as "Page"). Highlights made before 1.1.3 have no page.
-- **Moving old files:** when the stored location differs from the computed path (the old pair, or a book whose title changed), the next write reads each old file, keeps any text outside the plugin's managed blocks and appends it below the new file's block (skipped if the new file already contains that text), records the new location, and only then moves the old files, and their folder if it is now empty, to the trash through `FileManager.trashFile`. If the new file cannot be written, nothing is trashed and the old location is kept.
-- **Sync:** the merge rule for `annotationDocuments` prefers a single-file location over a two-file pair, so a device that has not reopened a book yet cannot switch the others back to the old layout.
+- **Where:** the book note is the Markdown file named like the EPUB (`Dune - Frank Herbert.epub` → `Dune - Frank Herbert.md`), found with `metadataCache.getFirstLinkpathDest(basename, epubPath)`, falling back to any Markdown file with that basename. If there is none, the write fails with a notice; nothing is written elsewhere.
+- **Callout:** highlights go directly under the line `> > > [!quotenew] Quotes & References` (`HIGHLIGHTS_CALLOUT`). If the note has no such line, the callout and its lines are added at the end of the note (only when the book has highlights).
+- **Line format:** one line per highlight, `> > - <passage> #quote <#tags> *-- <note>* (<chapter>, [p. <page>](<link into the book>))`. Passage and note are collapsed to one line; the note part is left out when there is none; the chapter is left out when unknown; without a page the link reads "Open in book". A highlight tag `quote` is not repeated. Lines are in book order (spine index, then CFI, then creation time).
+- **Owned lines:** a line belongs to the plugin when it contains a Markdown link to `obsidian://omni-book-reader-mod?` (or the original plugin's `omni-book-reader?`). Every other line is the owner's and is never changed. The callout's list is the run of `> > -` lines (and `> >` lines indented as continuations) right after the callout line. On each write, the plugin's lines in that run are replaced in place with the current highlights in book order; extra highlights go after the last plugin line, or at the end of the run when there is none yet; plugin lines for deleted highlights are removed. Plugin lines moved outside the run are left as they are.
+- **Moving earlier generated files:** candidates are the stored `annotationDocuments` paths and the two `Notes.md` names for the book's title in `Media/Books/Attachments`. A candidate is only used if it contains `<!-- omni-book-reader:` markers, so a hand-written note can never be trashed. Its text outside the plugin's blocks and frontmatter is appended to the book note (unless already there); after the book note is written the files, and an emptied folder (never `Media/Books/Attachments` itself), go to the trash through `FileManager.trashFile`. If writing the book note fails, nothing is trashed.
+- **Removed settings:** the export layout (Classic/Compact/Callout), custom template and "Notes file properties" only shaped the separate file, so they were removed; `normalizeSettings` drops them from stored data.
+- **Sync:** `annotationDocuments` now records the book note. The merge rule ranks the book note above a generated `Notes.md` and that above an old pair, so devices that have not updated yet cannot pull the others back.
+- **Pages:** `ReaderHighlight.page` stores the page shown in the reader when the highlight was made: the publisher page-list label if the EPUB has one, otherwise Foliate's location number. Highlights made before 1.1.3 have no page.
 
 ## Alternatives considered
 
-- A setting for the folder: not needed for a single-owner fork; the constant is easy to change.
-- Naming the file after the EPUB file name: the owner's book notes are named by title.
+- Rewriting the whole callout list: simpler, but would delete the owner's own quotes and references there.
+- Marker comments around a generated block: would show up inside the owner's callout and break its `> > -` list.
 
 ## Consequences
 
-- Two different EPUBs with the same title would share one file and overwrite each other's managed block. Recorded as TD-2026-004.
-- The file is only moved when the book is opened, or when a highlight changes, not for every book at startup.
+- The callout line and prefix are fixed in code for this single-owner fork.
+- Two EPUBs with the same file name in different folders would share one book note.
 
 ## Validation
 
-`tests/annotation-documents.test.ts` covers ordering, grouping, each preset, file-name and tag cleanup, frontmatter, moving an old pair with user text, repeating the move without duplicating text, and keeping old files when the write fails. `tests/reading-sync-model.test.ts` covers the merge preference and syncing `page`; `tests/store.test.ts` covers normalizing `page`.
+`tests/annotation-documents.test.ts` covers the line format, book order, in-place updates around the owner's lines, adding a missing callout, writing into the book note, a missing book note, moving earlier files (stored and found by title, pairs and empty folders), never trashing a non-generated file, and keeping old files when the write fails. `tests/reading-sync-model.test.ts` covers the merge ranking; `tests/defaults.test.ts` covers dropping the removed settings.

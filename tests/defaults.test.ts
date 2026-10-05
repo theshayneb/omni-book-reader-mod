@@ -32,14 +32,8 @@ describe("reader settings", () => {
       contentWidth: 1200,
       pageMargin: 0,
     });
-    expect(normalizeSettings({
-      tapToTurnPages: false,
-      exportTemplate: "custom",
-      customExportTemplatePath: "Templates\\EPUB export.md",
-    })).toMatchObject({ tapToTurnPages: false, exportTemplate: "custom" });
-    expect(normalizeSettings({
-      exportTemplate: "callout",
-      customExportTemplatePath: "Templates\\EPUB export.md",
-    }).customExportTemplatePath).toBe("Templates/EPUB export.md");
+    expect(normalizeSettings({ tapToTurnPages: false })).toMatchObject({ tapToTurnPages: false });
+    // Settings removed in 1.1.11 (export layouts, custom template, notes file properties) are dropped.
+    expect(normalizeSettings({ exportTemplate: "custom", notesFrontmatter: "tags: x" })).not.toHaveProperty("exportTemplate");
   });
 });

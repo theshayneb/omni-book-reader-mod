@@ -16,7 +16,7 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ### TD-2026-004: Books with the same title share one annotation file
 
-- Status: Open
+- Status: Resolved (2026-10-05): highlights now go into the book note named like the EPUB file, not a file named after the title
 - Area: annotation documents
 - Introduced: 2026-10-03, `docs/exec-plans/completed/single-annotation-file.md`
 - Impact: two different EPUBs whose metadata titles clean up to the same file name write to the same `Media/Books/Attachments/<title> Notes.md`, and each overwrites the other's managed block

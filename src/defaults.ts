@@ -12,8 +12,6 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   widthMode: "standard",
   contentWidth: 720,
   pageMargin: 48,
-  exportTemplate: "classic",
-  customExportTemplatePath: "",
   bookshelfDisplayMode: "grid",
   bookshelfFilter: "all",
   bookshelfSort: "recent",
@@ -27,14 +25,12 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   hasSeenReaderTutorial: false,
   syncEnabled: true,
   syncFolder: "Utilities/Omni Book Reader Mod/Sync",
-  notesFrontmatter: "tags:\n  - book_notes",
 };
 
 const themes = new Set(["auto", "light", "dark", "sepia"]);
 const layouts = new Set(["paginated", "scrolled"]);
 const fonts = new Set(["obsidian", "publisher", "serif", "sans"]);
 const widthModes = new Set(["standard", "wide", "full", "edge"]);
-const exportTemplates = new Set(["classic", "compact", "callout", "custom"]);
 const bookshelfDisplayModes = new Set(["list", "grid", "covers"]);
 const bookshelfFilters = new Set(["all", "reading", "finished", "reading-list"]);
 const bookshelfSorts = new Set(["recent", "title", "progress"]);
@@ -67,12 +63,6 @@ export function normalizeSettings(value: unknown): ReaderSettings {
       : DEFAULT_SETTINGS.widthMode,
     contentWidth: Math.round(clamp(input.contentWidth, 480, 1200, DEFAULT_SETTINGS.contentWidth)),
     pageMargin: Math.round(clamp(input.pageMargin, 0, 80, DEFAULT_SETTINGS.pageMargin)),
-    exportTemplate: exportTemplates.has(String(input.exportTemplate))
-      ? input.exportTemplate as ReaderSettings["exportTemplate"]
-      : DEFAULT_SETTINGS.exportTemplate,
-    customExportTemplatePath: typeof input.customExportTemplatePath === "string"
-      ? input.customExportTemplatePath.replace(/\\/g, "/").trim().slice(0, 1000)
-      : DEFAULT_SETTINGS.customExportTemplatePath,
     bookshelfDisplayMode: bookshelfDisplayModes.has(String(input.bookshelfDisplayMode))
       ? input.bookshelfDisplayMode as ReaderSettings["bookshelfDisplayMode"] : DEFAULT_SETTINGS.bookshelfDisplayMode,
     bookshelfFilter: bookshelfFilters.has(String(input.bookshelfFilter))
@@ -96,9 +86,6 @@ export function normalizeSettings(value: unknown): ReaderSettings {
       ? input.hasSeenReaderTutorial : DEFAULT_SETTINGS.hasSeenReaderTutorial,
     syncEnabled: typeof input.syncEnabled === "boolean" ? input.syncEnabled : DEFAULT_SETTINGS.syncEnabled,
     syncFolder: normalizeSyncFolder(input.syncFolder),
-    notesFrontmatter: typeof input.notesFrontmatter === "string"
-      ? input.notesFrontmatter.replace(/\r\n?/g, "\n").trimEnd().slice(0, 5000)
-      : DEFAULT_SETTINGS.notesFrontmatter,
   };
 }
 

@@ -8,7 +8,7 @@ The default reading typography follows Obsidian's configured text font and font 
 
 The plugin interface uses a plain, functional style built on Obsidian's own theme variables, so it follows your active light or dark theme, interface font, and accent color. Reduced-motion behavior, keyboard focus rings, and a mobile drawer layout are included. The plugin does not download web fonts or other interface assets.
 
-Click a highlight in the book, or use its note button in the reader sidebar, to add or edit a note. The selection toolbar's tag button highlights the selection and asks for tags straight away. The plugin keeps one generated Markdown file per book at `Media/Books/Attachments/<book title> Notes.md`, named after the title in the EPUB's metadata, with frontmatter set by the **Notes file properties** setting (by default a `book_notes` tag). That setting takes YAML and supports `{{book.title}}`, `{{book.author}}`, `{{book.link}}` and `{{book.filePath}}`; its values are applied each time the file is updated, list values such as tags are added to the file's own, and other properties in the file are kept. Its heading is a link to the book's own note, the Markdown file named like the EPUB (`Dune - Frank Herbert.epub` → `[[Dune - Frank Herbert]]`). Highlights (each ending with `#quote` followed by the highlight's tags) and their notes (one bullet each) appear together, grouped under their chapter in book order, each with its page number (for highlights made since 1.1.3), date, and a link back into the book; tags become Obsidian `#tags`. The file is updated whenever highlights or notes change. Use the sidebar export button or the command palette to force a refresh and open it. Books that still have the older Highlight/Note file pair next to the EPUB are moved into the new file the next time they are opened: anything you wrote outside the generated section is carried over, and the old files go to the Obsidian trash.
+Click a highlight in the book, or use its note button in the reader sidebar, to add or edit a note. The selection toolbar's tag button highlights the selection and asks for tags straight away. Highlights and notes are written into the book's own note, the Markdown file named exactly like the EPUB (`Dune - Frank Herbert.epub` → `Dune - Frank Herbert.md`), directly under the line `> > > [!quotenew] Quotes & References` (added at the end of the note if it is missing). Each highlight is one line, in book order: `> > - passage #quote #tags *-- your note* (Chapter, [p. 14](link back into the book))`. The plugin only adds, updates and removes its own lines (the ones with a link back into the book); anything else you write under the callout is left alone. Use the sidebar export button or the command palette to refresh and open the note. Books with a generated `Notes.md` file from 1.1.1–1.1.10 (or an older Highlight/Note pair) are moved the next time they are opened: anything you wrote in those files is added to the book note, and the files go to the Obsidian trash.
 
 Annotations support highlight, underline, strikethrough, and squiggly styles, four colors, notes, and tags. The sidebar can combine tag, chapter, color, and note-status filters, then sort by creation time or chapter. Exported entries include an Obsidian CFI link that reopens the source EPUB at the exact location.
 
@@ -31,11 +31,7 @@ With Obsidian Sync, turn on **Sync all other types** in Obsidian Sync's settings
 
 ## Markdown exports
 
-Generated Markdown is written only between `omni-book-reader` managed-block comments, so content written outside that block is preserved. Unchanged exports are not rewritten. The settings page offers Classic, Compact, and Obsidian Callout presets. A custom Vault Markdown template can use these variables:
-
-- `{{document.title}}`, `{{document.kind}}` (`annotations`)
-- `{{book.title}}`, `{{book.author}}`, `{{book.filePath}}`, `{{book.link}}` (wikilink to the book note)
-- `{{export.date}}`, `{{entries}}`
+Chapter exports are written only between `omni-book-reader` managed-block comments, so content written outside that block is preserved. Unchanged exports are not rewritten.
 
 ## Development
 

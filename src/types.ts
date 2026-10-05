@@ -4,7 +4,6 @@ export type ReaderFont = "obsidian" | "publisher" | "serif" | "sans";
 export type ReaderWidthMode = "standard" | "wide" | "full" | "edge";
 export type HighlightColor = "yellow" | "green" | "blue" | "pink";
 export type HighlightStyle = "highlight" | "underline" | "strikethrough" | "squiggly";
-export type ExportTemplatePreset = "classic" | "compact" | "callout" | "custom";
 export type BookshelfDisplayMode = "list" | "grid" | "covers";
 export type BookshelfFilter = "all" | "reading" | "finished" | "reading-list";
 export type BookshelfSort = "recent" | "title" | "progress";
@@ -24,8 +23,6 @@ export interface ReaderSettings {
   widthMode: ReaderWidthMode;
   contentWidth: number;
   pageMargin: number;
-  exportTemplate: ExportTemplatePreset;
-  customExportTemplatePath: string;
   bookshelfDisplayMode: BookshelfDisplayMode;
   bookshelfFilter: BookshelfFilter;
   bookshelfSort: BookshelfSort;
@@ -39,8 +36,6 @@ export interface ReaderSettings {
   hasSeenReaderTutorial: boolean;
   syncEnabled: boolean;
   syncFolder: string;
-  /** YAML properties applied to every book's highlights-and-notes file; empty leaves frontmatter alone. */
-  notesFrontmatter: string;
 }
 
 export interface SourceSignature {

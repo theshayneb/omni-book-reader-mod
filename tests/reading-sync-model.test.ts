@@ -204,6 +204,10 @@ describe("reading sync model", () => {
 
     expect(mergeSyncedBooks(pair, single).annotationDocuments).toEqual(single.annotationDocuments);
     expect(mergeSyncedBooks(single, pair).annotationDocuments).toEqual(single.annotationDocuments);
+
+    const bookNote = { ...emptySyncedBook(), annotationDocuments: { highlightPath: "Media/Books/A.md", notePath: "Media/Books/A.md", createdDate: "2026-01-01" } };
+    expect(mergeSyncedBooks(single, bookNote).annotationDocuments).toEqual(bookNote.annotationDocuments);
+    expect(mergeSyncedBooks(bookNote, single).annotationDocuments).toEqual(bookNote.annotationDocuments);
   });
 
   it("syncs the page a highlight was made on", () => {

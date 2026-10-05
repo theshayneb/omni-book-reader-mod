@@ -6,6 +6,7 @@ import type {
   ReadingPosition,
   ReadingStats,
 } from "./types";
+import { ANNOTATION_FOLDER } from "./annotation-documents";
 import { isValidCfi, normalizeVaultPath } from "./utils";
 
 /**
@@ -18,7 +19,7 @@ import { isValidCfi, normalizeVaultPath } from "./utils";
  * - position and completion: last-writer-wins by timestamp
  * - reading time: one grow-only counter per device, summed
  * - last opened/read and furthest progress: maximum
- * - annotation document paths: a single-file location beats an old two-file pair, then the earliest created wins
+ * - annotation document paths: the book note beats a generated Notes file, which beats an old two-file pair; then the earliest created wins
  */
 
 export const SYNC_FORMAT = "omni-book-reader-mod-sync";
@@ -127,9 +128,13 @@ function newerCompletion(left?: SyncedCompletion, right?: SyncedCompletion): Syn
 
 function earlierDocuments(left?: AnnotationDocuments, right?: AnnotationDocuments): AnnotationDocuments | undefined {
   if (!left || !right) return left ?? right;
-  // A single-file location (highlightPath === notePath) replaces the old two-file layout, so it always wins.
+  // Newest layout wins: the book note itself, then a single generated Notes file, then the old two-file pair.
+  const layout = (documents: AnnotationDocuments): string => {
+    if (documents.highlightPath !== documents.notePath) return "2";
+    return documents.highlightPath.startsWith(`${ANNOTATION_FOLDER}/`) ? "1" : "0";
+  };
   const key = (documents: AnnotationDocuments): string => [
-    documents.highlightPath === documents.notePath ? "0" : "1",
+    layout(documents),
     documents.createdDate || "9999-99-99",
     documents.highlightPath,
   ].join("\n");

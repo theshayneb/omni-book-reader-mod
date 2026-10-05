@@ -1,14 +1,10 @@
 import { App, Modal, Plugin, PluginSettingTab, Setting } from "obsidian";
 import type { SettingDefinitionItem } from "obsidian";
-import { notesFrontmatterError } from "./annotation-documents";
 import { DEFAULT_SETTINGS } from "./defaults";
 import type { ReaderSettings } from "./types";
 
 const SYNC_DESCRIPTION = "Keep reading progress, highlights, notes, bookmarks, and reading time in sync between your devices. "
   + "Each device writes its own file in the sync folder. With Obsidian Sync, turn on \"Sync all other types\" so these .json files are included.";
-const NOTES_FRONTMATTER_DESCRIPTION = "YAML properties for each book's highlights and notes file, applied whenever it is updated. "
-  + "Values here replace the file's; lists such as tags are added to. "
-  + "Supports {{book.title}}, {{book.author}}, {{book.link}}, and {{book.filePath}}. Leave empty to leave the frontmatter alone.";
 const SYNC_FOLDER_DESCRIPTION = "Vault folder for the per-device sync files. Use the same folder on every device.";
 
 export interface SettingsHost {
@@ -186,44 +182,6 @@ function renderSettings(
       .setValue(get().connectAdjacentHighlights)
       .onChange((connectAdjacentHighlights) => host.updateReaderSettings({ connectAdjacentHighlights })));
 
-  new Setting(container)
-    .setName("Export template")
-    .setDesc("Control how each annotation appears in each book's highlights and notes file.")
-    .addDropdown((dropdown) => dropdown
-      .addOptions({
-        classic: "Classic sections",
-        compact: "Compact list",
-        callout: "Obsidian Callout",
-        custom: "Custom template",
-      })
-      .setValue(get().exportTemplate)
-      .onChange((exportTemplate) => host.updateReaderSettings({
-        exportTemplate: exportTemplate as ReaderSettings["exportTemplate"],
-      })));
-
-  const frontmatterSetting = new Setting(container)
-    .setName("Notes file properties")
-    .setDesc(NOTES_FRONTMATTER_DESCRIPTION);
-  frontmatterSetting.addTextArea((text) => {
-    text.inputEl.rows = 5;
-    text
-      .setPlaceholder(DEFAULT_SETTINGS.notesFrontmatter)
-      .setValue(get().notesFrontmatter)
-      .onChange((notesFrontmatter) => {
-        const error = notesFrontmatterError(notesFrontmatter);
-        frontmatterSetting.setDesc(error || NOTES_FRONTMATTER_DESCRIPTION);
-        frontmatterSetting.descEl.toggleClass("mod-warning", Boolean(error));
-        if (!error) host.updateReaderSettings({ notesFrontmatter });
-      });
-  });
-
-  new Setting(container)
-    .setName("Custom export template")
-    .setDesc("Used when Custom template is selected. Enter a Markdown path in the vault. Supports {{document.title}}, {{document.kind}}, {{book.title}}, {{book.author}}, {{book.filePath}}, {{book.link}}, {{export.date}}, and {{entries}}.")
-    .addText((text) => text
-      .setPlaceholder("Templates/EPUB annotation export.md")
-      .setValue(get().customExportTemplatePath)
-      .onChange((customExportTemplatePath) => host.updateReaderSettings({ customExportTemplatePath })));
 }
 
 export class ReaderSettingsModal extends Modal {
@@ -430,40 +388,6 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
             name: "Merge adjacent highlights",
             control: { type: "toggle", key: "connectAdjacentHighlights" },
           },
-          {
-            name: "Export template",
-            desc: "Control how each annotation appears in each book's highlights and notes file.",
-            control: {
-              type: "dropdown",
-              key: "exportTemplate",
-              options: {
-                classic: "Classic sections",
-                compact: "Compact list",
-                callout: "Obsidian Callout",
-                custom: "Custom template",
-              },
-            },
-          },
-          {
-            name: "Notes file properties",
-            desc: NOTES_FRONTMATTER_DESCRIPTION,
-            control: {
-              type: "textarea",
-              key: "notesFrontmatter",
-              rows: 5,
-              placeholder: DEFAULT_SETTINGS.notesFrontmatter,
-              validate: (value: string) => notesFrontmatterError(value),
-            },
-          },
-          {
-            name: "Custom export template",
-            desc: "Used when Custom template is selected. Enter a Markdown path in the vault. Supports {{document.title}}, {{document.kind}}, {{book.title}}, {{book.author}}, {{book.filePath}}, {{book.link}}, {{export.date}}, and {{entries}}.",
-            control: {
-              type: "text",
-              key: "customExportTemplatePath",
-              placeholder: "Templates/EPUB annotation export.md",
-            },
-          },
         ],
       },
       {
@@ -504,9 +428,6 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "paragraphSpacing": return settings.paragraphSpacing;
       case "widthMode": return settings.widthMode;
       case "pageMargin": return settings.pageMargin;
-      case "exportTemplate": return settings.exportTemplate;
-      case "customExportTemplatePath": return settings.customExportTemplatePath;
-      case "notesFrontmatter": return settings.notesFrontmatter;
       case "syncEnabled": return settings.syncEnabled;
       case "syncFolder": return settings.syncFolder;
       default: return undefined;
@@ -551,23 +472,12 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
           this.host.updateReaderSettings({ widthMode: value });
         }
         return;
-      case "exportTemplate":
-        if (value === "classic" || value === "compact" || value === "callout" || value === "custom") {
-          this.host.updateReaderSettings({ exportTemplate: value });
-        }
-        return;
       case "fontSizePercent":
       case "lineHeight":
       case "letterSpacing":
       case "paragraphSpacing":
       case "pageMargin":
         if (typeof value === "number" && Number.isFinite(value)) this.host.updateReaderSettings({ [key]: value });
-        return;
-      case "customExportTemplatePath":
-        if (typeof value === "string") this.host.updateReaderSettings({ customExportTemplatePath: value });
-        return;
-      case "notesFrontmatter":
-        if (typeof value === "string" && !notesFrontmatterError(value)) this.host.updateReaderSettings({ notesFrontmatter: value });
         return;
       case "syncEnabled":
         if (typeof value === "boolean") this.host.updateReaderSettings({ syncEnabled: value });

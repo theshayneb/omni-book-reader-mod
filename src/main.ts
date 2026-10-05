@@ -85,6 +85,7 @@ export default class OmniBookReaderPlugin extends Plugin {
     this.annotationDocuments = new AnnotationDocumentService(
       this.app.vault,
       (file) => this.app.fileManager.trashFile(file),
+      (sourceFile) => this.findBookNote(sourceFile),
     );
     try {
       await this.annotationDocuments.migrateLegacyProtocolLinks(
@@ -289,12 +290,14 @@ export default class OmniBookReaderPlugin extends Plugin {
   }
 
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void> {
-    return this.annotationDocuments.sync({
-      ...input,
-      exportTemplate: this.store.settings.exportTemplate,
-      customExportTemplatePath: this.store.settings.customExportTemplatePath,
-      frontmatter: this.store.settings.notesFrontmatter,
-    });
+    return this.annotationDocuments.sync(input);
+  }
+
+  /** The Markdown note named like the EPUB, which holds the book's highlights. */
+  private findBookNote(sourceFile: TFile): TFile | null {
+    const linked = this.app.metadataCache.getFirstLinkpathDest(sourceFile.basename, sourceFile.path);
+    if (linked && linked.extension.toLowerCase() === "md" && linked.basename === sourceFile.basename) return linked;
+    return this.app.vault.getMarkdownFiles().find((file) => file.basename === sourceFile.basename) ?? null;
   }
 
   async openEpub(file: TFile): Promise<void> {

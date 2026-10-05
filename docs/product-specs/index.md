@@ -14,7 +14,7 @@ Omni Book Reader is a local-first EPUB 2/3 reading workbench inside Obsidian. It
 | Reading | Support paginated and scrolled layouts, table-of-contents navigation, search, position restore, appearance settings, and focus paragraph mode |
 | Input | Support keyboard, touch, swipe, and mobile page-turn controls without breaking text selection or editable controls |
 | Annotations | Create bookmarks, highlights, underlines, strikethroughs, squiggles, notes, colors, and tags; filter and sort saved annotations; keep mobile selection-handle drags on the current page while allowing desktop mouse edge-assisted selection within a chapter |
-| Exports | Produce one managed highlights-and-notes Markdown document per book and chapter Markdown with local assets while preserving user content outside managed blocks |
+| Exports | Keep each book's highlights and notes as lines under a callout in the book's own note, and produce chapter Markdown with local assets while preserving user content outside managed blocks |
 | Reading history | Track active session time, furthest progress, completion, estimated remaining time, and recent books |
 | Integration | Open `.epub` files as an Obsidian view and reopen exact locations through `obsidian://omni-book-reader` CFI links |
 | Sync | Keep reading position, highlights, notes, bookmarks, reading time, and finished state in sync across devices through per-device files in the vault, without losing edits made on several devices between syncs |
