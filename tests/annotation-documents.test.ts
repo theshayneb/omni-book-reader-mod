@@ -85,6 +85,14 @@ describe("book note highlights", () => {
       .toBe(`> > - The highlighted source text #quote *([Open in book](${link()}))*`);
   });
 
+  it("renders saved word lookups as word, then the italic result and location", () => {
+    const lookup = highlight({ text: "ephemeral", lookup: true, page: "14", tags: ["definition"], note: "adjective: Lasting a short time." });
+    expect(renderHighlightLine(lookup, sourceFile.path, "Test Vault"))
+      .toBe(`> > - ephemeral *-- adjective: Lasting a short time. (Chapter 1, [p. 14](${link()}))*`);
+    expect(renderHighlightLine({ ...lookup, note: undefined, chapter: "" }, sourceFile.path, "Test Vault"))
+      .toBe(`> > - ephemeral *([p. 14](${link()}))*`);
+  });
+
   it("orders lines by position in the book", () => {
     const lines = renderHighlightLines([
       highlight({ id: "c", cfi: "epubcfi(/6/4!/4/2:0)", sectionIndex: 1, text: "Third" }),

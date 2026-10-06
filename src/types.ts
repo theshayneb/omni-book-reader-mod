@@ -70,6 +70,8 @@ export interface ReaderHighlight {
   createdAt: number;
   /** Page label shown in the reader when the highlight was made; absent for older highlights. */
   page?: string;
+  /** True when the highlight was saved from a word lookup; its note is the definition or translation. */
+  lookup?: boolean;
   note?: string;
   noteUpdatedAt?: number;
   stale?: boolean;

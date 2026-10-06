@@ -118,6 +118,7 @@ export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string)
 /**
  * One highlight as a line under the book note's callout:
  * `> > - passage #quote #tags *-- note* *(Chapter, [p. 14](link))*`.
+ * A saved word lookup is `> > - word *-- definition (Chapter, [p. 14](link))*` instead.
  * The link back into the book is what marks the line as the plugin's.
  */
 export function renderHighlightLine(highlight: ReaderHighlight, sourcePath: string, vaultName = ""): string {
@@ -129,6 +130,9 @@ export function renderHighlightLine(highlight: ReaderHighlight, sourcePath: stri
     chapter && chapter !== "Untitled chapter" ? chapter : "",
     `[${linkText}](${buildCfiLink(vaultName, sourcePath, highlight.cfi)})`,
   ].filter(Boolean).join(", ");
+  if (highlight.lookup) {
+    return `${HIGHLIGHT_LINE_PREFIX}${singleLine(highlight.text, "(empty excerpt)")} *${note ? `-- ${note} ` : ""}(${location})*`;
+  }
   return [
     `${HIGHLIGHT_LINE_PREFIX}${singleLine(highlight.text, "(empty excerpt)")}`,
     QUOTE_TAG,

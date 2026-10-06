@@ -407,6 +407,7 @@ function parseHighlight(input: unknown): SyncedHighlight | null {
     sectionIndex: Math.max(0, Math.round(finite(input.sectionIndex))),
     createdAt: finite(input.createdAt),
     ...(typeof input.page === "string" && input.page.trim() ? { page: input.page.trim().slice(0, 50) } : {}),
+    ...(input.lookup === true ? { lookup: true } : {}),
     ...(typeof input.note === "string" && input.note ? { note: input.note.slice(0, 20000) } : {}),
     ...(typeof input.noteUpdatedAt === "number" && Number.isFinite(input.noteUpdatedAt) ? { noteUpdatedAt: input.noteUpdatedAt } : {}),
   };

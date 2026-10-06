@@ -2301,6 +2301,7 @@ export class OmniBookReaderView extends FileView {
     const settings = this.plugin.getReaderSettings();
     const highlight = await this.commitHighlight(settings.defaultHighlightColor, this.selectedHighlightStyle);
     if (!highlight) throw new Error("Could not highlight the selection");
+    highlight.lookup = true;
     const summary = lookupSummary(result);
     const note = highlight.note?.includes(summary) ? highlight.note : [highlight.note?.trim(), summary].filter(Boolean).join(" ");
     await this.saveHighlightEdit(highlight, {

@@ -78,6 +78,7 @@ function normalizeHighlight(value: unknown): ReaderHighlight | null {
     page: typeof input.page === "string" && input.page.trim()
       ? input.page.trim().slice(0, 50)
       : undefined,
+    lookup: input.lookup === true || undefined,
     note: typeof input.note === "string" && input.note.trim()
       ? input.note.trim().slice(0, 20000)
       : undefined,

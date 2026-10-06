@@ -25,7 +25,7 @@ Additional reading tools:
 
 ## Defining and translating words
 
-Select a word or phrase and tap the **Define or translate** button in the selection toolbar. English is looked up in a dictionary and shows its pronunciation, parts of speech and definitions; any other language is translated into English. Only the result is shown. From the result you can **Copy** it, or **Save to book note**: that highlights the selection and keeps the result as its note, tagged `#definition` or `#translation`, so it appears in the book note with your other highlights.
+Select a word or phrase and tap the **Define or translate** button in the selection toolbar. English is looked up in a dictionary and shows its pronunciation, parts of speech and definitions; any other language is translated into English. Only the result is shown. From the result you can **Copy** it, or **Save to book note**: that highlights the selection and keeps the result as its note (tagged `#definition` or `#translation` in the reader), and adds it to the book note as `> > - word *-- result (Chapter, [p. 14](link))*`.
 
 ### Network use
 
