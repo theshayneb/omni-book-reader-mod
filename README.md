@@ -29,7 +29,7 @@ Select a word or phrase and tap the **Define or translate** button in the select
 
 ### Network use
 
-This is the only feature that goes online, and only when you tap the button. The selected text is sent to Google Translate (`translate.googleapis.com`) to detect its language and translate it, and, for English, to the Free Dictionary API (`api.dictionaryapi.dev`, Wiktionary data) for the definition. Nothing else from your vault or books is sent.
+This is the only feature that goes online, and only when you tap the button. The selected text is sent to Google Translate (`translate.googleapis.com`) to detect its language and translate it, and, for English words Google has no definition for, to Wiktionary (`en.wiktionary.org`) and the Free Dictionary API (`api.dictionaryapi.dev`) for the definition. Nothing else from your vault or books is sent.
 
 ## Syncing across devices
 

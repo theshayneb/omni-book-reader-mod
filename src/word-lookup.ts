@@ -2,8 +2,8 @@ import { requestUrl } from "obsidian";
 
 /**
  * Looks up selected text with Google Translate, which detects the language: English text gets Google's
- * dictionary definitions (falling back to the Free Dictionary API, Wiktionary data), anything else is
- * translated into English.
+ * dictionary definitions, or else the first answer from Wiktionary or the Free Dictionary API; anything
+ * else is translated into English.
  */
 
 export interface WordSense {
@@ -26,16 +26,20 @@ export type JsonFetcher = (url: string) => Promise<unknown>;
 
 const MAX_LOOKUP_LENGTH = 500;
 const SENSES_PER_MEANING = 3;
-const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_TIMEOUT_MS = 8000;
 
 export const fetchJson: JsonFetcher = async (url) => {
+  const host = new URL(url).host;
   let timer = 0;
   const timeout = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(() => reject(new Error("The lookup service did not answer in time")), REQUEST_TIMEOUT_MS);
+    timer = window.setTimeout(() => reject(new Error(`${host} did not answer in time`)), REQUEST_TIMEOUT_MS);
   });
-  const response = await Promise.race([requestUrl({ url, throw: false }), timeout]).finally(() => window.clearTimeout(timer));
+  // Wikimedia asks API clients to identify themselves.
+  const headers = host.endsWith("wiktionary.org") ? { "Api-User-Agent": "OmniBookReaderMod (personal Obsidian plugin)" } : undefined;
+  const response = await Promise.race([requestUrl({ url, throw: false, ...(headers ? { headers } : {}) }), timeout])
+    .finally(() => window.clearTimeout(timer));
   if (response.status === 404) return null;
-  if (response.status < 200 || response.status >= 300) throw new Error(`Lookup service answered ${response.status}`);
+  if (response.status < 200 || response.status >= 300) throw new Error(`${host} answered ${response.status}`);
   return response.json as unknown;
 };
 
@@ -86,6 +90,69 @@ export function parseGoogleDefinitions(data: unknown): WordMeaning[] | null {
   return meanings.length ? meanings : null;
 }
 
+/** Plain text from the small HTML snippets Wiktionary uses for definitions and examples. */
+export function htmlToText(html: string): string {
+  const text = typeof DOMParser === "function"
+    ? new DOMParser().parseFromString(html, "text/html").body.textContent ?? ""
+    : html.replace(/<[^>]*>/g, "");
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Reads Wiktionary's REST definition answer (`/api/rest_v1/page/definition/<word>`):
+ * `{ en: [{ partOfSpeech, definitions: [{ definition: html, examples?: html[] }] }], … }`.
+ */
+export function parseWiktionaryDefinitions(data: unknown): { phonetic: string; meanings: WordMeaning[] } | null {
+  if (!isRecord(data) || !Array.isArray(data.en)) return null;
+  const meanings: WordMeaning[] = [];
+  for (const group of data.en) {
+    if (!isRecord(group) || !Array.isArray(group.definitions)) continue;
+    const senses = group.definitions
+      .filter(isRecord)
+      .map((item): WordSense => {
+        const example = Array.isArray(item.examples) && typeof item.examples[0] === "string" ? htmlToText(item.examples[0]) : "";
+        return { definition: htmlToText(text(item.definition)), ...(example ? { example } : {}) };
+      })
+      .filter((sense) => sense.definition)
+      .slice(0, SENSES_PER_MEANING);
+    if (senses.length) meanings.push({ partOfSpeech: text(group.partOfSpeech).toLowerCase(), senses });
+  }
+  return meanings.length ? { phonetic: "", meanings } : null;
+}
+
+type DictionaryEntry = { phonetic: string; meanings: WordMeaning[] };
+
+/**
+ * Asks every dictionary at once and takes the first entry found, so one slow or unreachable service
+ * does not hold up the lookup. Resolves `null` when a service answered that it has no entry; rejects
+ * only when none of them answered at all.
+ */
+function firstEntry(attempts: Array<Promise<DictionaryEntry | null>>): Promise<DictionaryEntry | null> {
+  return new Promise((resolve, reject) => {
+    let remaining = attempts.length;
+    let answered = false;
+    let lastError: unknown = null;
+    let done = false;
+    for (const attempt of attempts) {
+      attempt.then((entry) => {
+        answered = true;
+        if (entry && !done) {
+          done = true;
+          resolve(entry);
+        }
+      }, (error: unknown) => {
+        lastError = error;
+      }).finally(() => {
+        remaining -= 1;
+        if (remaining || done) return;
+        done = true;
+        if (answered) resolve(null);
+        else reject(lastError instanceof Error ? lastError : new Error("No dictionary answered"));
+      });
+    }
+  });
+}
+
 /** Reads the Free Dictionary API answer into parts of speech with a few senses each. */
 export function parseDictionaryEntries(data: unknown): { phonetic: string; meanings: WordMeaning[] } | null {
   if (!Array.isArray(data)) return null;
@@ -124,9 +191,11 @@ export async function lookUpSelection(selection: string, fetcher: JsonFetcher = 
   if (!query) return { kind: "not-found", text: selection.trim() };
   const define = async (googleMeanings: WordMeaning[] | null): Promise<LookupResult> => {
     if (googleMeanings) return { kind: "definition", text: query, phonetic: "", meanings: googleMeanings };
-    const entry = parseDictionaryEntries(await fetcher(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(query.toLowerCase())}`,
-    ));
+    const word = encodeURIComponent(query.toLowerCase());
+    const entry = await firstEntry([
+      fetcher(`https://en.wiktionary.org/api/rest_v1/page/definition/${word}`).then(parseWiktionaryDefinitions),
+      fetcher(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`).then(parseDictionaryEntries),
+    ]);
     return entry ? { kind: "definition", text: query, ...entry } : { kind: "not-found", text: query };
   };
 

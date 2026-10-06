@@ -6,6 +6,7 @@ import {
   parseDictionaryEntries,
   parseGoogleDefinitions,
   parseGoogleTranslation,
+  parseWiktionaryDefinitions,
 } from "../src/word-lookup";
 
 const google = (translation: string, language: string) => [[[translation, "x", null, null, 1]], null, language];
@@ -29,7 +30,10 @@ describe("word lookup", () => {
     const result = await lookUpSelection(" Ephemeral, ", fetcher);
 
     expect(fetcher.mock.calls[0]?.[0]).toContain("sl=auto&tl=en&dt=t&dt=md&q=Ephemeral");
-    expect(fetcher.mock.calls[1]?.[0]).toBe("https://api.dictionaryapi.dev/api/v2/entries/en/ephemeral");
+    expect(fetcher.mock.calls.slice(1).map(([url]) => url)).toEqual([
+      "https://en.wiktionary.org/api/rest_v1/page/definition/ephemeral",
+      "https://api.dictionaryapi.dev/api/v2/entries/en/ephemeral",
+    ]);
     expect(result).toEqual({
       kind: "definition",
       text: "Ephemeral",
@@ -104,5 +108,46 @@ describe("word lookup", () => {
     });
     expect((await lookUpSelection("ephemeral", fetcher)).kind).toBe("definition");
     await expect(lookUpSelection("le chat noir é", fetcher)).rejects.toThrow("429");
+  });
+
+  const wiktionary = {
+    en: [
+      { partOfSpeech: "Noun", language: "English", definitions: [
+        { definition: "A <a href=\"/wiki/structure\">structure</a> built for living in.", examples: ["We live in a <b>house</b>."] },
+        { definition: "" },
+      ] },
+      { partOfSpeech: "Verb", language: "English", definitions: [{ definition: "To <i>keep</i> within a structure." }] },
+    ],
+    fr: [{ partOfSpeech: "Noun", definitions: [{ definition: "French sense" }] }],
+  };
+
+  it("reads Wiktionary's HTML definitions as plain text", () => {
+    expect(parseWiktionaryDefinitions(wiktionary)).toEqual({
+      phonetic: "",
+      meanings: [
+        { partOfSpeech: "noun", senses: [{ definition: "A structure built for living in.", example: "We live in a house." }] },
+        { partOfSpeech: "verb", senses: [{ definition: "To keep within a structure." }] },
+      ],
+    });
+    expect(parseWiktionaryDefinitions({ fr: [] })).toBeNull();
+  });
+
+  it("uses whichever dictionary answers when another never does", async () => {
+    const fetcher = vi.fn((url: string) => {
+      if (url.includes("translate.googleapis.com")) return Promise.resolve(google("house", "en"));
+      if (url.includes("wiktionary")) return Promise.resolve(wiktionary);
+      return new Promise<unknown>(() => undefined);
+    });
+    const result = await lookUpSelection("house", fetcher);
+    expect(result.kind).toBe("definition");
+    expect(result.kind === "definition" ? result.meanings[0]?.partOfSpeech : "").toBe("noun");
+  });
+
+  it("names the service when no dictionary answers", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("translate.googleapis.com")) return google("house", "en");
+      throw new Error(`${new URL(url).host} did not answer in time`);
+    });
+    await expect(lookUpSelection("house", fetcher)).rejects.toThrow("did not answer in time");
   });
 });
