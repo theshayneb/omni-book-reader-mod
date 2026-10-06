@@ -10,7 +10,7 @@ import {
   WorkspaceLeaf,
   setIcon,
 } from "obsidian";
-import { PROTOCOL_ACTION, type AnnotationDocumentInput } from "./annotation-documents";
+import type { AnnotationDocumentInput } from "./annotation-documents";
 import { annotationValueAtPoint } from "./annotation-hit-test";
 import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
@@ -873,20 +873,16 @@ export class OmniBookReaderView extends FileView {
     const quickHighlight = iconButton(this.selectionToolbarEl, "highlighter", "Highlight with defaults");
     quickHighlight.addClass("omni-book-reader-selection-primary");
     quickHighlight.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle));
-    const copySelection = iconButton(this.selectionToolbarEl, "copy", "Copy selected text");
-    copySelection.addEventListener("click", () => void navigator.clipboard.writeText(this.pendingSelection?.text ?? ""));
+    const addTags = iconButton(this.selectionToolbarEl, "tag", "Highlight and add tags");
+    addTags.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
+      if (highlight) this.openHighlightTags(highlight);
+    }));
     const addNote = iconButton(this.selectionToolbarEl, "notebook-pen", "Highlight and add note");
     addNote.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
       if (highlight) this.openHighlightActions(highlight);
     }));
     const lookUp = iconButton(this.selectionToolbarEl, "book-a", "Define or translate");
     lookUp.addEventListener("click", () => void this.lookUpSelection());
-    const addTags = iconButton(this.selectionToolbarEl, "tag", "Highlight and add tags");
-    addTags.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
-      if (highlight) this.openHighlightTags(highlight);
-    }));
-    const selectionMore = iconButton(this.selectionToolbarEl, "ellipsis", "More selection actions");
-    selectionMore.addEventListener("click", (event) => this.openSelectionMenu(event));
     const cancelSelection = iconButton(this.selectionToolbarEl, "x", "Cancel highlight");
     cancelSelection.addEventListener("click", () => this.clearPendingSelection());
 
@@ -1036,21 +1032,6 @@ export class OmniBookReaderView extends FileView {
     menu.addItem((item) => item.setTitle("Reading statistics").setIcon("chart-no-axes-column-increasing").onClick(() => this.openReadingStats()));
     menu.addItem((item) => item.setTitle(this.focusMode ? "Exit immersive reading" : "Immersive reading").setIcon("maximize").onClick(() => void this.toggleFocusMode()));
     menu.addItem((item) => item.setTitle("Full reader settings").setIcon("settings").onClick(() => new ReaderSettingsModal(this.app, this.plugin, this.fixedLayout).open()));
-    menu.showAtMouseEvent(event);
-  }
-
-  private openSelectionMenu(event: MouseEvent): void {
-    const pending = this.pendingSelection;
-    if (!pending) return;
-    const menu = new Menu();
-    menu.addItem((item) => item.setTitle("Copy source link").setIcon("link").onClick(() => {
-      const vault = encodeURIComponent(this.app.vault.getName());
-      const path = encodeURIComponent(this.file?.path ?? "");
-      const cfi = encodeURIComponent(pending.cfi);
-      void navigator.clipboard.writeText(`obsidian://${PROTOCOL_ACTION}?sourceVault=${vault}&path=${path}&cfi=${cfi}`);
-    }));
-    menu.addItem((item) => item.setTitle("Search the web").setIcon("search").onClick(() => window.open(`https://www.google.com/search?q=${encodeURIComponent(pending.text)}`)));
-    menu.addItem((item) => item.setTitle("Translate selection").setIcon("languages").onClick(() => window.open(`https://translate.google.com/?sl=auto&tl=auto&text=${encodeURIComponent(pending.text)}&op=translate`)));
     menu.showAtMouseEvent(event);
   }
 
