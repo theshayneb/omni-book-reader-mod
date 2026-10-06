@@ -152,6 +152,11 @@ export interface ReaderPluginHost extends SettingsHost {
   recordReadingProgress(sourceFile: TFile, page: string): Promise<void>;
 }
 
+/** How long a just-cleared selection can still be looked up (Android may clear it as the toolbar is tapped). */
+const RECENT_SELECTION_MS = 10000;
+/** Lookups slower than this show a brief "Looking up…" so the button does not seem dead. */
+const SLOW_LOOKUP_MS = 1500;
+
 /** How often the page being read is saved to the book note's `Progress` property while a book is open. */
 const PROGRESS_SAVE_INTERVAL_MS = 3 * 60 * 1000;
 
@@ -545,6 +550,7 @@ export class OmniBookReaderView extends FileView {
   private progressSaveTimer: number | null = null;
   private lookupInFlight = false;
   private lookupPanelEl: HTMLElement | null = null;
+  private lastSelection: { pending: PendingSelection; at: number } | null = null;
   private statsLastTick = 0;
   private statsLastActivity = 0;
   private sessionReadingMs = 0;
@@ -1087,14 +1093,14 @@ export class OmniBookReaderView extends FileView {
     }
   }
 
-  private showLocalStatus(message: string): void {
+  private showLocalStatus(message: string, durationMs = 1800): void {
     if (this.localStatusTimer !== null) window.clearTimeout(this.localStatusTimer);
     this.localStatusEl?.setText(message);
     this.localStatusEl?.addClass("is-visible");
     this.localStatusTimer = window.setTimeout(() => {
       this.localStatusTimer = null;
       this.localStatusEl?.removeClass("is-visible");
-    }, 1800);
+    }, durationMs);
   }
 
   private buildSidebar(parent: HTMLElement): HTMLElement {
@@ -2048,6 +2054,7 @@ export class OmniBookReaderView extends FileView {
       const range = selection.getRangeAt(0).cloneRange();
       const cfi = this.reader.getCFI(sectionIndex, range);
       this.pendingSelection = { cfi, text, sectionIndex, selection };
+      this.lastSelection = { pending: this.pendingSelection, at: Date.now() };
       this.selectionToolbarEl?.addClass("is-visible");
       this.uiState.open("selection");
       this.positionSelectionToolbar(range, document);
@@ -2222,15 +2229,31 @@ export class OmniBookReaderView extends FileView {
 
   /** Defines the selected English word, or translates other languages, and shows only the result. */
   private async lookUpSelection(): Promise<void> {
-    const pending = this.pendingSelection;
-    if (!pending?.text.trim() || this.lookupInFlight) return;
+    // Android can clear the selection as the toolbar is tapped (dismissing its own Copy/Share bar),
+    // so fall back to the selection made a moment ago.
+    const recent = this.lastSelection && Date.now() - this.lastSelection.at < RECENT_SELECTION_MS ? this.lastSelection.pending : null;
+    const pending = this.pendingSelection ?? recent;
+    if (!pending?.text.trim()) {
+      this.showLocalStatus("Select a word first, then tap Define or translate", 4000);
+      return;
+    }
+    if (this.lookupInFlight) {
+      this.showLocalStatus("Still looking up the previous word…");
+      return;
+    }
     this.lookupInFlight = true;
+    // Only say anything about the lookup itself if it is slow.
+    const slowTimer = window.setTimeout(() => this.showLocalStatus("Looking up…", 12000), SLOW_LOOKUP_MS);
     try {
-      this.showLookupResult(await lookUpSelection(pending.text), pending);
+      const result = await lookUpSelection(pending.text);
+      window.clearTimeout(slowTimer);
+      this.localStatusEl?.removeClass("is-visible");
+      this.showLookupResult(result, pending);
     } catch (error) {
+      window.clearTimeout(slowTimer);
       console.error("[Omni Book Reader] Word lookup failed", error);
       const reason = error instanceof Error && error.message ? ` (${error.message})` : "";
-      this.showLocalStatus(`Could not look up the selection${reason}`);
+      this.showLocalStatus(`Could not look up the selection${reason}`, 6000);
     } finally {
       this.lookupInFlight = false;
     }
@@ -2945,6 +2968,7 @@ export class OmniBookReaderView extends FileView {
     this.localStatusTimer = null;
     this.selectionPageTurnGuardUntil = 0;
     this.closeLookupPanel();
+    this.lastSelection = null;
     if (invalidateLoad) this.loadGeneration += 1;
     this.saveCurrentPosition();
     this.tickReadingStats();
