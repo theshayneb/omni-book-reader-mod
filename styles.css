@@ -2851,8 +2851,14 @@ body.omni-book-reader-immersive-mode {
   font-weight: var(--font-semibold);
 }
 
+/* Keep Copy and Save visible while a long definition scrolls. */
 .omni-book-reader-lookup .omni-book-reader-modal-actions {
-  margin-top: 12px;
+  position: sticky;
+  bottom: -12px;
+  margin: 12px -14px -12px;
+  padding: 10px 14px 12px;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .omni-book-reader-lookup-phonetic,
