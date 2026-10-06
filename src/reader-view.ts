@@ -354,55 +354,23 @@ class HighlightTagsModal extends Modal {
   }
 }
 
-/** Shows the result of a word lookup: a definition for English, otherwise a translation. */
-class WordLookupModal extends Modal {
-  constructor(
-    app: ReaderPluginHost["app"],
-    private readonly result: LookupResult,
-    private readonly onSave: () => Promise<void>,
-  ) {
-    super(app);
-  }
-
-  onOpen(): void {
-    this.modalEl.addClass("omni-book-reader-lookup-modal");
-    const result = this.result;
-    this.titleEl.setText(result.text);
-    if (result.kind === "definition") {
-      if (result.phonetic) this.contentEl.createDiv({ cls: "omni-book-reader-lookup-phonetic", text: result.phonetic });
-      for (const meaning of result.meanings) {
-        if (meaning.partOfSpeech) this.contentEl.createEl("h4", { cls: "omni-book-reader-lookup-pos", text: meaning.partOfSpeech });
-        const list = this.contentEl.createEl("ol", { cls: "omni-book-reader-lookup-senses" });
-        for (const sense of meaning.senses) {
-          const item = list.createEl("li", { text: sense.definition });
-          if (sense.example) item.createDiv({ cls: "omni-book-reader-lookup-example", text: `“${sense.example}”` });
-        }
+/** Fills `container` with a lookup result: a definition for English, otherwise a translation. */
+function renderLookupResult(container: HTMLElement, result: LookupResult): void {
+  if (result.kind === "definition") {
+    if (result.phonetic) container.createDiv({ cls: "omni-book-reader-lookup-phonetic", text: result.phonetic });
+    for (const meaning of result.meanings) {
+      if (meaning.partOfSpeech) container.createEl("h4", { cls: "omni-book-reader-lookup-pos", text: meaning.partOfSpeech });
+      const list = container.createEl("ol", { cls: "omni-book-reader-lookup-senses" });
+      for (const sense of meaning.senses) {
+        const item = list.createEl("li", { text: sense.definition });
+        if (sense.example) item.createDiv({ cls: "omni-book-reader-lookup-example", text: `“${sense.example}”` });
       }
-    } else if (result.kind === "translation") {
-      this.contentEl.createDiv({ cls: "omni-book-reader-lookup-translation", text: result.translation });
-      this.contentEl.createDiv({ cls: "omni-book-reader-lookup-source", text: `Translated from ${languageName(result.sourceLanguage)}` });
-    } else {
-      this.contentEl.createDiv({ cls: "omni-book-reader-empty", text: "No definition found." });
-      return;
     }
-    const actions = this.contentEl.createDiv({ cls: "omni-book-reader-modal-actions" });
-    const copy = actions.createEl("button", { text: "Copy" });
-    const save = actions.createEl("button", { cls: "mod-cta", text: "Save to book note" });
-    copy.addEventListener("click", () => {
-      void navigator.clipboard.writeText(`${result.text}: ${lookupSummary(result)}`).then(() => new Notice("Copied"));
-    });
-    save.addEventListener("click", () => {
-      save.disabled = true;
-      void this.onSave().then(() => this.close(), (error: unknown) => {
-        console.error("[Omni Book Reader] Could not save the lookup", error);
-        new Notice(error instanceof Error ? error.message : "Could not save the lookup");
-        save.disabled = false;
-      });
-    });
-  }
-
-  onClose(): void {
-    this.contentEl.empty();
+  } else if (result.kind === "translation") {
+    container.createDiv({ cls: "omni-book-reader-lookup-translation", text: result.translation });
+    container.createDiv({ cls: "omni-book-reader-lookup-source", text: `Translated from ${languageName(result.sourceLanguage)}` });
+  } else {
+    container.createDiv({ cls: "omni-book-reader-empty", text: "No definition found." });
   }
 }
 
@@ -576,6 +544,7 @@ export class OmniBookReaderView extends FileView {
   private statsTimer: number | null = null;
   private progressSaveTimer: number | null = null;
   private lookupInFlight = false;
+  private lookupPanelEl: HTMLElement | null = null;
   private statsLastTick = 0;
   private statsLastActivity = 0;
   private sessionReadingMs = 0;
@@ -2276,14 +2245,53 @@ export class OmniBookReaderView extends FileView {
     if (!pending?.text.trim() || this.lookupInFlight) return;
     this.lookupInFlight = true;
     try {
-      const result = await lookUpSelection(pending.text);
-      new WordLookupModal(this.app, result, async () => this.saveLookup(pending, result)).open();
+      this.showLookupResult(await lookUpSelection(pending.text), pending);
     } catch (error) {
       console.error("[Omni Book Reader] Word lookup failed", error);
-      new Notice("Could not look up the selection. Check your internet connection.");
+      const reason = error instanceof Error && error.message ? ` (${error.message})` : "";
+      this.showLocalStatus(`Could not look up the selection${reason}`);
     } finally {
       this.lookupInFlight = false;
     }
+  }
+
+  /**
+   * Shows a lookup result in a panel inside the reader rather than an Obsidian modal, so it stays
+   * visible in focus mode, whose full-screen layer sits above Obsidian's modals.
+   */
+  private showLookupResult(result: LookupResult, pending: PendingSelection): void {
+    this.closeLookupPanel();
+    if (!this.rootEl) return;
+    const panel = this.rootEl.createDiv({
+      cls: "omni-book-reader-lookup",
+      attr: { role: "dialog", "aria-label": "Word lookup result" },
+    });
+    const header = panel.createDiv({ cls: "omni-book-reader-lookup-header" });
+    header.createDiv({ cls: "omni-book-reader-lookup-title", text: result.text });
+    iconButton(header, "x", "Close").addEventListener("click", () => this.closeLookupPanel());
+    renderLookupResult(panel.createDiv({ cls: "omni-book-reader-lookup-body" }), result);
+    if (result.kind !== "not-found") {
+      const actions = panel.createDiv({ cls: "omni-book-reader-modal-actions" });
+      const copy = actions.createEl("button", { text: "Copy", attr: { type: "button" } });
+      const save = actions.createEl("button", { cls: "mod-cta", text: "Save to book note", attr: { type: "button" } });
+      copy.addEventListener("click", () => {
+        void navigator.clipboard.writeText(`${result.text}: ${lookupSummary(result)}`).then(() => this.showLocalStatus("Copied"));
+      });
+      save.addEventListener("click", () => {
+        save.disabled = true;
+        void this.saveLookup(pending, result).then(() => this.closeLookupPanel(), (error: unknown) => {
+          console.error("[Omni Book Reader] Could not save the lookup", error);
+          this.showLocalStatus(error instanceof Error ? error.message : "Could not save the lookup");
+          save.disabled = false;
+        });
+      });
+    }
+    this.lookupPanelEl = panel;
+  }
+
+  private closeLookupPanel(): void {
+    this.lookupPanelEl?.remove();
+    this.lookupPanelEl = null;
   }
 
   /** Highlights the looked-up text and keeps the result as its note, tagged #definition or #translation. */
@@ -2842,7 +2850,8 @@ export class OmniBookReaderView extends FileView {
     if (event.defaultPrevented) return;
     if (isEditableTarget(event.target)) return;
     if (event.key === "Escape") {
-      if (this.pageJumpEl?.hasClass("is-open")) this.closePageJump();
+      if (this.lookupPanelEl) this.closeLookupPanel();
+      else if (this.pageJumpEl?.hasClass("is-open")) this.closePageJump();
       else if (this.quickSettingsOpen) this.toggleQuickSettings(false);
       else if (this.pendingSelection) this.clearPendingSelection();
       else if (this.focusMode) void this.toggleFocusMode(false);
@@ -2953,6 +2962,7 @@ export class OmniBookReaderView extends FileView {
     if (this.localStatusTimer !== null) window.clearTimeout(this.localStatusTimer);
     this.localStatusTimer = null;
     this.selectionPageTurnGuardUntil = 0;
+    this.closeLookupPanel();
     if (invalidateLoad) this.loadGeneration += 1;
     this.saveCurrentPosition();
     this.tickReadingStats();

@@ -1,8 +1,9 @@
 import { requestUrl } from "obsidian";
 
 /**
- * Looks up selected text: English is defined with the Free Dictionary API (Wiktionary data),
- * anything else is translated to English with Google Translate, which also detects the language.
+ * Looks up selected text with Google Translate, which detects the language: English text gets Google's
+ * dictionary definitions (falling back to the Free Dictionary API, Wiktionary data), anything else is
+ * translated into English.
  */
 
 export interface WordSense {
@@ -25,9 +26,14 @@ export type JsonFetcher = (url: string) => Promise<unknown>;
 
 const MAX_LOOKUP_LENGTH = 500;
 const SENSES_PER_MEANING = 3;
+const REQUEST_TIMEOUT_MS = 12000;
 
 export const fetchJson: JsonFetcher = async (url) => {
-  const response = await requestUrl({ url, throw: false });
+  let timer = 0;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error("The lookup service did not answer in time")), REQUEST_TIMEOUT_MS);
+  });
+  const response = await Promise.race([requestUrl({ url, throw: false }), timeout]).finally(() => window.clearTimeout(timer));
   if (response.status === 404) return null;
   if (response.status < 200 || response.status >= 300) throw new Error(`Lookup service answered ${response.status}`);
   return response.json as unknown;
@@ -59,6 +65,25 @@ export function parseGoogleTranslation(data: unknown): { translation: string; so
     : "";
   const sourceLanguage = text(data[2]);
   return sourceLanguage ? { translation, sourceLanguage } : null;
+}
+
+/** Reads the dictionary part of a Google Translate answer (`dt=md`): `[[partOfSpeech, [[definition, id, example?], …]], …]` at index 12. */
+export function parseGoogleDefinitions(data: unknown): WordMeaning[] | null {
+  if (!Array.isArray(data) || !Array.isArray(data[12])) return null;
+  const meanings: WordMeaning[] = [];
+  for (const group of data[12] as unknown[]) {
+    if (!Array.isArray(group) || !Array.isArray(group[1])) continue;
+    const senses = (group[1] as unknown[])
+      .filter((item): item is unknown[] => Array.isArray(item))
+      .map((item): WordSense => {
+        const example = text(item[2]);
+        return { definition: text(item[0]), ...(example ? { example } : {}) };
+      })
+      .filter((sense) => sense.definition)
+      .slice(0, SENSES_PER_MEANING);
+    if (senses.length) meanings.push({ partOfSpeech: text(group[0]), senses });
+  }
+  return meanings.length ? meanings : null;
 }
 
 /** Reads the Free Dictionary API answer into parts of speech with a few senses each. */
@@ -97,18 +122,30 @@ export function parseDictionaryEntries(data: unknown): { phonetic: string; meani
 export async function lookUpSelection(selection: string, fetcher: JsonFetcher = fetchJson): Promise<LookupResult> {
   const query = selection.replace(/\s+/g, " ").trim().replace(/^[\p{P}\s]+|[\p{P}\s]+$/gu, "").slice(0, MAX_LOOKUP_LENGTH);
   if (!query) return { kind: "not-found", text: selection.trim() };
-
-  const translated = parseGoogleTranslation(await fetcher(
-    `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(query)}`,
-  ));
-  if (!translated) throw new Error("Could not detect the language of the selection");
-
-  if (translated.sourceLanguage.toLowerCase().startsWith("en")) {
+  const define = async (googleMeanings: WordMeaning[] | null): Promise<LookupResult> => {
+    if (googleMeanings) return { kind: "definition", text: query, phonetic: "", meanings: googleMeanings };
     const entry = parseDictionaryEntries(await fetcher(
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(query.toLowerCase())}`,
     ));
     return entry ? { kind: "definition", text: query, ...entry } : { kind: "not-found", text: query };
+  };
+
+  let google: unknown;
+  try {
+    google = await fetcher(
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&dt=md&q=${encodeURIComponent(query)}`,
+    );
+  } catch (error) {
+    // Without Google, plain English-looking words can still be defined.
+    if (/^[A-Za-z][A-Za-z' -]*$/.test(query)) return define(null);
+    throw error;
   }
+  const translated = parseGoogleTranslation(google);
+  if (!translated) {
+    if (/^[A-Za-z][A-Za-z' -]*$/.test(query)) return define(null);
+    throw new Error("Could not detect the language of the selection");
+  }
+  if (translated.sourceLanguage.toLowerCase().startsWith("en")) return define(parseGoogleDefinitions(google));
   return translated.translation
     ? { kind: "translation", text: query, translation: translated.translation, sourceLanguage: translated.sourceLanguage }
     : { kind: "not-found", text: query };

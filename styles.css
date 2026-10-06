@@ -2816,10 +2816,43 @@ body.omni-book-reader-immersive-mode {
   border-inline-start-color: var(--interactive-accent);
 }
 
-/* Word lookup result: selectable so it can be copied by hand too. */
-.omni-book-reader-lookup-modal .modal-content {
+/* Word lookup result, shown inside the reader so focus mode cannot cover it; selectable for copying by hand. */
+.omni-book-reader-lookup {
+  position: absolute;
+  z-index: 135;
+  top: calc(max(14px, env(safe-area-inset-top)) + 48px);
+  left: 50%;
+  width: min(420px, calc(100% - 24px));
+  max-height: min(60vh, calc(100% - 140px));
+  padding: 12px 14px;
+  overflow-y: auto;
+  font-family: var(--font-interface);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-l);
+  transform: translateX(-50%);
   user-select: text;
   -webkit-user-select: text;
+}
+
+.omni-book-reader-lookup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.omni-book-reader-lookup-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+}
+
+.omni-book-reader-lookup .omni-book-reader-modal-actions {
+  margin-top: 12px;
 }
 
 .omni-book-reader-lookup-phonetic,
