@@ -45,4 +45,12 @@ describe("mobile reader sidebar layout", () => {
     expect(toolbar).toContain("var(--mobile-navbar-height, 64px)");
     expect(toolbar).toContain("env(safe-area-inset-bottom, 0px)");
   });
+
+  it("keeps status messages and lookup results above the selection toolbar", () => {
+    const zIndex = (selector: string): number => Number(/z-index:\s*(\d+)/.exec(declarations(selector))?.[1] ?? 0);
+    const toolbar = zIndex(".omni-book-reader-selection-toolbar");
+    expect(toolbar).toBeGreaterThan(0);
+    expect(zIndex(".omni-book-reader-local-status")).toBeGreaterThan(toolbar);
+    expect(zIndex(".omni-book-reader-lookup")).toBeGreaterThan(toolbar);
+  });
 });
