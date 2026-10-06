@@ -22,3 +22,7 @@ export class TFile extends TAbstractFile {
 export class TFolder extends TAbstractFile {
   children: TAbstractFile[] = [];
 }
+
+export function requestUrl(): Promise<never> {
+  return Promise.reject(new Error("requestUrl is not available in tests"));
+}

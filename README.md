@@ -23,6 +23,14 @@ Additional reading tools:
 - Recent Reading is available from the ribbon and command palette for quickly continuing a book without a full bookshelf.
 - Focus Paragraph mode dims surrounding text and supports previous/next paragraph navigation with buttons or Arrow Up/Down. Escape exits the mode.
 
+## Defining and translating words
+
+Select a word or phrase and tap the **Define or translate** button in the selection toolbar. English is looked up in a dictionary and shows its pronunciation, parts of speech and definitions; any other language is translated into English. Only the result is shown. From the result you can **Copy** it, or **Save to book note**: that highlights the selection and keeps the result as its note, tagged `#definition` or `#translation`, so it appears in the book note with your other highlights.
+
+### Network use
+
+This is the only feature that goes online, and only when you tap the button. The selected text is sent to Google Translate (`translate.googleapis.com`) to detect its language and translate it, and, for English, to the Free Dictionary API (`api.dictionaryapi.dev`, Wiktionary data) for the definition. Nothing else from your vault or books is sent.
+
 ## Syncing across devices
 
 Reading position, highlights, notes, bookmarks, reading time, and finished state sync between devices that share the vault. Each device writes its own file to `Utilities/Omni Book Reader Mod/Sync/` (configurable in settings), and the plugin merges the other devices' files as they arrive. Edits made on several devices before they sync are combined rather than overwritten, and deletions carry over. If a book is open when a newer position arrives from another device, the reader moves there.

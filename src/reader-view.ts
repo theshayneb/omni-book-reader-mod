@@ -46,6 +46,7 @@ import {
   type SelectionPageTurnSource,
 } from "./mobile-input";
 import { installPublicationSanitizer } from "./sanitizer";
+import { languageName, lookUpSelection, lookupSummary, lookupTag, type LookupResult } from "./word-lookup";
 import { SearchSession } from "./search-session";
 import { canNavigateToSavedLocation } from "./saved-location";
 import { ReaderSettingsModal, type SettingsHost } from "./settings-ui";
@@ -353,6 +354,58 @@ class HighlightTagsModal extends Modal {
   }
 }
 
+/** Shows the result of a word lookup: a definition for English, otherwise a translation. */
+class WordLookupModal extends Modal {
+  constructor(
+    app: ReaderPluginHost["app"],
+    private readonly result: LookupResult,
+    private readonly onSave: () => Promise<void>,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-lookup-modal");
+    const result = this.result;
+    this.titleEl.setText(result.text);
+    if (result.kind === "definition") {
+      if (result.phonetic) this.contentEl.createDiv({ cls: "omni-book-reader-lookup-phonetic", text: result.phonetic });
+      for (const meaning of result.meanings) {
+        if (meaning.partOfSpeech) this.contentEl.createEl("h4", { cls: "omni-book-reader-lookup-pos", text: meaning.partOfSpeech });
+        const list = this.contentEl.createEl("ol", { cls: "omni-book-reader-lookup-senses" });
+        for (const sense of meaning.senses) {
+          const item = list.createEl("li", { text: sense.definition });
+          if (sense.example) item.createDiv({ cls: "omni-book-reader-lookup-example", text: `“${sense.example}”` });
+        }
+      }
+    } else if (result.kind === "translation") {
+      this.contentEl.createDiv({ cls: "omni-book-reader-lookup-translation", text: result.translation });
+      this.contentEl.createDiv({ cls: "omni-book-reader-lookup-source", text: `Translated from ${languageName(result.sourceLanguage)}` });
+    } else {
+      this.contentEl.createDiv({ cls: "omni-book-reader-empty", text: "No definition found." });
+      return;
+    }
+    const actions = this.contentEl.createDiv({ cls: "omni-book-reader-modal-actions" });
+    const copy = actions.createEl("button", { text: "Copy" });
+    const save = actions.createEl("button", { cls: "mod-cta", text: "Save to book note" });
+    copy.addEventListener("click", () => {
+      void navigator.clipboard.writeText(`${result.text}: ${lookupSummary(result)}`).then(() => new Notice("Copied"));
+    });
+    save.addEventListener("click", () => {
+      save.disabled = true;
+      void this.onSave().then(() => this.close(), (error: unknown) => {
+        console.error("[Omni Book Reader] Could not save the lookup", error);
+        new Notice(error instanceof Error ? error.message : "Could not save the lookup");
+        save.disabled = false;
+      });
+    });
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
 class FootnotePreviewModal extends Modal {
   constructor(
     app: ReaderPluginHost["app"],
@@ -522,6 +575,7 @@ export class OmniBookReaderView extends FileView {
   private syncedPosition: { position: ReadingPosition; until: number } | null = null;
   private statsTimer: number | null = null;
   private progressSaveTimer: number | null = null;
+  private lookupInFlight = false;
   private statsLastTick = 0;
   private statsLastActivity = 0;
   private sessionReadingMs = 0;
@@ -856,6 +910,8 @@ export class OmniBookReaderView extends FileView {
     addNote.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
       if (highlight) this.openHighlightActions(highlight);
     }));
+    const lookUp = iconButton(this.selectionToolbarEl, "book-a", "Define or translate");
+    lookUp.addEventListener("click", () => void this.lookUpSelection());
     const addTags = iconButton(this.selectionToolbarEl, "tag", "Highlight and add tags");
     addTags.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
       if (highlight) this.openHighlightTags(highlight);
@@ -2212,6 +2268,39 @@ export class OmniBookReaderView extends FileView {
       async (edit) => this.saveHighlightEdit(highlight, edit),
       async () => this.deleteHighlight(highlight),
     ).open();
+  }
+
+  /** Defines the selected English word, or translates other languages, and shows only the result. */
+  private async lookUpSelection(): Promise<void> {
+    const pending = this.pendingSelection;
+    if (!pending?.text.trim() || this.lookupInFlight) return;
+    this.lookupInFlight = true;
+    try {
+      const result = await lookUpSelection(pending.text);
+      new WordLookupModal(this.app, result, async () => this.saveLookup(pending, result)).open();
+    } catch (error) {
+      console.error("[Omni Book Reader] Word lookup failed", error);
+      new Notice("Could not look up the selection. Check your internet connection.");
+    } finally {
+      this.lookupInFlight = false;
+    }
+  }
+
+  /** Highlights the looked-up text and keeps the result as its note, tagged #definition or #translation. */
+  private async saveLookup(pending: PendingSelection, result: LookupResult): Promise<void> {
+    this.pendingSelection ??= pending;
+    if (this.pendingSelection.cfi !== pending.cfi) throw new Error("The selection changed; look the word up again to save it");
+    const settings = this.plugin.getReaderSettings();
+    const highlight = await this.commitHighlight(settings.defaultHighlightColor, this.selectedHighlightStyle);
+    if (!highlight) throw new Error("Could not highlight the selection");
+    const summary = lookupSummary(result);
+    const note = highlight.note?.includes(summary) ? highlight.note : [highlight.note?.trim(), summary].filter(Boolean).join(" ");
+    await this.saveHighlightEdit(highlight, {
+      note,
+      color: highlight.color,
+      style: highlight.style,
+      tags: Array.from(new Set([...highlight.tags, lookupTag(result)])),
+    });
   }
 
   private openHighlightTags(highlight: ReaderHighlight): void {

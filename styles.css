@@ -2815,3 +2815,38 @@ body.omni-book-reader-immersive-mode {
   border-left-color: var(--interactive-accent);
   border-inline-start-color: var(--interactive-accent);
 }
+
+/* Word lookup result: selectable so it can be copied by hand too. */
+.omni-book-reader-lookup-modal .modal-content {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.omni-book-reader-lookup-phonetic,
+.omni-book-reader-lookup-source,
+.omni-book-reader-lookup-example {
+  color: var(--text-muted);
+}
+
+.omni-book-reader-lookup-pos {
+  margin: 12px 0 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
+.omni-book-reader-lookup-senses {
+  margin: 0;
+  padding-left: 1.4em;
+  line-height: 1.5;
+}
+
+.omni-book-reader-lookup-senses li + li {
+  margin-top: 4px;
+}
+
+.omni-book-reader-lookup-translation {
+  margin-bottom: 4px;
+  font-size: var(--font-ui-large);
+  line-height: 1.4;
+}
