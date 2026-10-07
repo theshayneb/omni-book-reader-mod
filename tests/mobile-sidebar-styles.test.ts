@@ -53,4 +53,12 @@ describe("mobile reader sidebar layout", () => {
     expect(zIndex(".omni-book-reader-local-status")).toBeGreaterThan(toolbar);
     expect(zIndex(".omni-book-reader-lookup")).toBeGreaterThan(toolbar);
   });
+
+  it("never resets Obsidian's dropdown arrow with the background shorthand", () => {
+    const offenders: string[] = [];
+    for (const [, selector, body] of styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (/\bselect\b/.test(selector ?? "") && /(^|[;\s])background\s*:/.test(body ?? "")) offenders.push((selector ?? "").trim());
+    }
+    expect(offenders).toEqual([]);
+  });
 });

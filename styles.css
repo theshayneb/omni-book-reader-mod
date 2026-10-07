@@ -1311,7 +1311,8 @@ body.omni-book-reader-immersive-mode {
 .omni-book-reader-tags-input,
 .omni-book-reader-annotation-options select {
   color: var(--text-normal);
-  background: var(--background-primary);
+  /* Colour only: the background shorthand would reset Obsidian's dropdown arrow to a repeating pattern. */
+  background-color: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
   box-shadow: none;
@@ -1614,7 +1615,8 @@ body.omni-book-reader-immersive-mode {
 .omni-book-reader-settings-page input[type="text"] {
   min-height: 38px;
   color: var(--text-normal);
-  background: var(--background-primary);
+  /* Colour only: the background shorthand would reset Obsidian's dropdown arrow to a repeating pattern. */
+  background-color: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
 }
