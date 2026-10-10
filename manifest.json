@@ -1,7 +1,7 @@
 {
   "id": "omni-book-reader-mod",
-  "name": "Omni Book Reader Mod",
-  "version": "1.1.23",
+  "name": "ePub Reader",
+  "version": "1.1.24",
   "minAppVersion": "1.9.14",
   "description": "An all-in-one, local-first EPUB reading workbench with a bookshelf, annotations, exports, focus mode, and reading statistics.",
   "author": "Pavel Peng",

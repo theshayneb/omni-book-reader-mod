@@ -18,7 +18,7 @@ export default defineConfig([
     },
     rules: {
       "obsidianmd/ui/sentence-case": ["warn", {
-        brands: [...DEFAULT_BRANDS, "Omni Book Reader"],
+        brands: [...DEFAULT_BRANDS, "Omni Book Reader", "ePub Reader"],
         acronyms: [...DEFAULT_ACRONYMS, "EPUB", "CFI"],
       }],
     },

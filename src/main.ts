@@ -104,7 +104,7 @@ export default class OmniBookReaderPlugin extends Plugin {
       this.registerExtensions(["epub"], OMNI_BOOK_READER_VIEW_TYPE);
     } catch (error) {
       console.error("[Omni Book Reader] Could not register .epub extension", error);
-      new Notice("Omni Book Reader could not register .epub files. Disable other EPUB reader plugins and reload Obsidian.");
+      new Notice("ePub Reader could not register .epub files. Disable other EPUB reader plugins and reload Obsidian.");
     }
 
     this.registerObsidianProtocolHandler(PROTOCOL_ACTION, (params) => {
@@ -139,18 +139,18 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking && available) void this.openEpub(file);
         return available;
       },
-    }, "Omni Book Reader: Open current EPUB");
+    }, "Open current EPUB");
 
     this.addUiCommand({
       id: "open-epub-bookshelf",
       callback: () => void this.openBookshelf(),
-    }, "Omni Book Reader: Open bookshelf");
-    this.addRibbonIcon("library", "Open Omni Book Reader bookshelf", () => void this.openBookshelf());
+    }, "Open bookshelf");
+    this.addRibbonIcon("library", "Open ePub Reader bookshelf", () => void this.openBookshelf());
 
     this.addUiCommand({
       id: "open-recent-epub",
       callback: () => new RecentReadingModal(this.app, this.store).open(),
-    }, "Omni Book Reader: Recent and continue reading");
+    }, "Recent and continue reading");
 
     this.addUiCommand({
       id: "toggle-reader-sidebar",
@@ -159,7 +159,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking) view?.toggleSidebar();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Toggle reader sidebar");
+    }, "Toggle reader sidebar");
 
     this.addUiCommand({
       id: "toggle-current-bookmark",
@@ -168,7 +168,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking) view?.toggleBookmark();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Add or remove bookmark here");
+    }, "Add or remove bookmark here");
 
     this.addUiCommand({
       id: "export-current-highlights",
@@ -177,7 +177,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking && view) void view.exportAnnotations();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Export highlights and notes from current EPUB");
+    }, "Export highlights and notes from current EPUB");
 
     this.addUiCommand({
       id: "export-current-chapter",
@@ -186,7 +186,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking && view) void view.exportCurrentChapter();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Export current EPUB chapter as Markdown");
+    }, "Export current EPUB chapter as Markdown");
 
     this.addUiCommand({
       id: "toggle-focus-paragraph",
@@ -195,7 +195,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking) void view?.toggleFocusMode();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Toggle immersive reading");
+    }, "Toggle immersive reading");
 
     this.addUiCommand({
       id: "show-reading-stats",
@@ -204,7 +204,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking) view?.openReadingStats();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Show reading statistics");
+    }, "Show reading statistics");
 
     this.addUiCommand({
       id: "show-reader-tutorial",
@@ -213,7 +213,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         if (!checking) view?.openTutorial();
         return Boolean(view);
       },
-    }, "Omni Book Reader: Reopen reader tutorial");
+    }, "Reopen reader tutorial");
 
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
       if (file instanceof TFile && file.extension.toLowerCase() === "epub") {
@@ -235,7 +235,7 @@ export default class OmniBookReaderPlugin extends Plugin {
     this.addUiCommand({
       id: "sync-reading-data",
       callback: () => void this.syncReadingDataNow(),
-    }, "Omni Book Reader: Sync reading data now");
+    }, "Sync reading data now");
 
     this.registerEvent(this.app.workspace.on("file-menu", (menu: Menu, file) => {
       if (!(file instanceof TFile) || file.extension.toLowerCase() !== "epub") return;
@@ -243,8 +243,8 @@ export default class OmniBookReaderPlugin extends Plugin {
       menu.addSeparator();
       menu.addItem((item) => item
         .setTitle(state?.hiddenFromBookshelf
-          ? "Omni Book Reader: Add to bookshelf"
-          : "Omni Book Reader: Remove from bookshelf")
+          ? "Add to bookshelf"
+          : "Remove from bookshelf")
         .setIcon(state?.hiddenFromBookshelf ? "library-big" : "eye-off")
         .onClick(() => {
           const book = this.store.ensureBook(file.path, { size: file.stat.size, mtime: file.stat.mtime });
@@ -252,8 +252,8 @@ export default class OmniBookReaderPlugin extends Plugin {
           this.store.markChanged(0);
           this.refreshBookshelves();
           new Notice(book.hiddenFromBookshelf
-            ? "Removed from the Omni Book Reader bookshelf"
-            : "Added to the Omni Book Reader bookshelf");
+            ? "Removed from the ePub Reader bookshelf"
+            : "Added to the ePub Reader bookshelf");
         }));
     }));
 
@@ -360,7 +360,7 @@ export default class OmniBookReaderPlugin extends Plugin {
 
   private async syncReadingDataNow(): Promise<void> {
     if (!this.store.settings.syncEnabled) {
-      new Notice("Reading sync is turned off in Omni Book Reader settings.");
+      new Notice("Reading sync is turned off in ePub Reader settings.");
       return;
     }
     await this.readingSync.flush();
@@ -394,7 +394,7 @@ export default class OmniBookReaderPlugin extends Plugin {
       const leaf = this.app.workspace.getLeaf(true);
       await leaf.openFile(file);
       if (leaf.view instanceof OmniBookReaderView) await leaf.view.navigateToCfi(cfi);
-      else new Notice("Could not create the EPUB reader view");
+      else new Notice("Could not create the ePub Reader view");
     } catch (error) {
       console.error("[Omni Book Reader] Failed to open CFI link", error);
       new Notice("Could not open the EPUB source location");

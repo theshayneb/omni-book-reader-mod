@@ -197,7 +197,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Omni Book Reader bookshelf";
+    return "ePub Reader bookshelf";
   }
 
   getIcon(): string {
@@ -320,7 +320,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
     setIcon(searchIcon, "search");
     const input = search.createEl("input", {
       type: "search",
-      attr: { placeholder: "Search titles or paths", "aria-label": "Search the Omni Book Reader bookshelf" },
+      attr: { placeholder: "Search titles or paths", "aria-label": "Search the ePub Reader bookshelf" },
     });
     input.value = this.query;
     input.addEventListener("input", () => {
@@ -652,7 +652,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const state = this.stateFor(file);
     state.hiddenFromBookshelf = true;
     this.plugin.store.markChanged(0);
-    new Notice("Removed from the Omni Book Reader bookshelf. The file remains in the vault.");
+    new Notice("Removed from the ePub Reader bookshelf. The file remains in the vault.");
     this.render();
   }
 

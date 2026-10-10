@@ -1,6 +1,6 @@
-# Omni Book Reader Mod
+# ePub Reader
 
-A personal fork of Omni Book Reader. It installs as a separate plugin (id `omni-book-reader-mod`) with its own settings, sync folder, views and `obsidian://omni-book-reader-mod` links, so the original plugin's updates never replace it. On first run it imports reading progress, highlights, notes, bookmarks and reader settings once from the original plugin's folder if that is present. Disable the original plugin: only one plugin can open `.epub` files.
+ePub Reader is a personal fork of Omni Book Reader. It installs as a separate plugin (id `omni-book-reader-mod`) with its own settings, sync folder, views and `obsidian://omni-book-reader-mod` links, so the original plugin's updates never replace it. On first run it imports reading progress, highlights, notes, bookmarks and reader settings once from the original plugin's folder if that is present. Disable the original plugin: only one plugin can open `.epub` files.
 
 An all-in-one, local-first EPUB 2/3 reading workbench for Obsidian. It supports paginated and scrolled reading, nested tables of contents, full-book search, reading-position restore, bookmarks, color highlights, and notes attached to highlights.
 
@@ -35,7 +35,7 @@ This is the only feature that goes online, and only when you tap the button. The
 
 Reading position, highlights, notes, bookmarks, reading time, and finished state sync between devices that share the vault. Each device writes its own file to `Utilities/Omni Book Reader Mod/Sync/` (configurable in settings), and the plugin merges the other devices' files as they arrive. Edits made on several devices before they sync are combined rather than overwritten, and deletions carry over. If a book is open when a newer position arrives from another device, the reader moves there.
 
-With Obsidian Sync, turn on **Sync all other types** in Obsidian Sync's settings so the `.json` sync files are included. Any other file sync service works too. Display settings stay per device. Use **Omni Book Reader: Sync reading data now** from the command palette to force a sync.
+With Obsidian Sync, turn on **Sync all other types** in Obsidian Sync's settings so the `.json` sync files are included. Any other file sync service works too. Display settings stay per device. Use **ePub Reader: Sync reading data now** from the command palette to force a sync.
 
 ## Markdown exports
 

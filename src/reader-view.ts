@@ -580,7 +580,7 @@ export class OmniBookReaderView extends FileView {
   private selectionPageTurnRunning = false;
   private selectionNavigationNoticeShown = false;
   private selectionTouchGestureActive = false;
-  private bookTitle = "Omni Book Reader";
+  private bookTitle = "ePub Reader";
   private bookAuthor = "";
   private fixedLayout = false;
   private loadedFileKey = "";
@@ -595,7 +595,7 @@ export class OmniBookReaderView extends FileView {
   }
 
   getDisplayText(): string {
-    return this.bookTitle || this.file?.basename || "Omni Book Reader";
+    return this.bookTitle || this.file?.basename || "ePub Reader";
   }
 
   getIcon(): string {
@@ -776,7 +776,7 @@ export class OmniBookReaderView extends FileView {
     const sidebarToggle = iconButton(header, "panel-left", "Toggle reader sidebar");
     sidebarToggle.addEventListener("click", () => this.toggleSidebar());
     const headings = header.createDiv({ cls: "omni-book-reader-headings" });
-    this.titleEl = headings.createDiv({ cls: "omni-book-reader-title", text: "Omni Book Reader" });
+    this.titleEl = headings.createDiv({ cls: "omni-book-reader-title", text: "ePub Reader" });
     this.chapterEl = headings.createDiv({ cls: "omni-book-reader-chapter", text: "Preparing book" });
     const headerActions = header.createDiv({ cls: "omni-book-reader-header-actions" });
     const search = iconButton(headerActions, "search", "Search this book");
@@ -1104,14 +1104,14 @@ export class OmniBookReaderView extends FileView {
   }
 
   private buildSidebar(parent: HTMLElement): HTMLElement {
-    const sidebar = parent.createEl("aside", { cls: "omni-book-reader-sidebar", attr: { "aria-label": "Omni Book Reader reader sidebar" } });
+    const sidebar = parent.createEl("aside", { cls: "omni-book-reader-sidebar", attr: { "aria-label": "ePub Reader sidebar" } });
     const bookHeader = sidebar.createDiv({ cls: "omni-book-reader-sidebar-book" });
     const cover = bookHeader.createDiv({ cls: "omni-book-reader-sidebar-cover" });
     this.sidebarCoverEl = cover;
     setIcon(cover, "book-open");
     this.sidebarCoverMarkEl = cover.createSpan({ text: "O" });
     const identity = bookHeader.createDiv({ cls: "omni-book-reader-sidebar-identity" });
-    this.sidebarBookTitleEl = identity.createDiv({ cls: "omni-book-reader-sidebar-book-title", text: "Omni Book Reader" });
+    this.sidebarBookTitleEl = identity.createDiv({ cls: "omni-book-reader-sidebar-book-title", text: "ePub Reader" });
     this.sidebarBookAuthorEl = identity.createDiv({ cls: "omni-book-reader-sidebar-book-author", text: "Loading book information…" });
     const progressRow = identity.createDiv({ cls: "omni-book-reader-sidebar-progress-row" });
     this.sidebarProgressEl = progressRow.createEl("input", {
