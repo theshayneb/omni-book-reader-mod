@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   defaultHighlightColor: "yellow",
   defaultHighlightStyle: "highlight",
   connectAdjacentHighlights: true,
+  hideAndroidTextMenu: true,
   interfaceDensity: "comfortable",
   hasSeenReaderTutorial: false,
   syncEnabled: true,
@@ -80,6 +81,8 @@ export function normalizeSettings(value: unknown): ReaderSettings {
       ? input.defaultHighlightStyle as ReaderSettings["defaultHighlightStyle"] : DEFAULT_SETTINGS.defaultHighlightStyle,
     connectAdjacentHighlights: typeof input.connectAdjacentHighlights === "boolean"
       ? input.connectAdjacentHighlights : DEFAULT_SETTINGS.connectAdjacentHighlights,
+    hideAndroidTextMenu: typeof input.hideAndroidTextMenu === "boolean"
+      ? input.hideAndroidTextMenu : DEFAULT_SETTINGS.hideAndroidTextMenu,
     interfaceDensity: interfaceDensities.has(String(input.interfaceDensity))
       ? input.interfaceDensity as ReaderSettings["interfaceDensity"] : DEFAULT_SETTINGS.interfaceDensity,
     hasSeenReaderTutorial: typeof input.hasSeenReaderTutorial === "boolean"

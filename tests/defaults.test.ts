@@ -32,7 +32,8 @@ describe("reader settings", () => {
       contentWidth: 1200,
       pageMargin: 0,
     });
-    expect(normalizeSettings({ tapToTurnPages: false })).toMatchObject({ tapToTurnPages: false });
+    expect(normalizeSettings({ tapToTurnPages: false })).toMatchObject({ tapToTurnPages: false, hideAndroidTextMenu: true });
+    expect(normalizeSettings({ hideAndroidTextMenu: false }).hideAndroidTextMenu).toBe(false);
     // Settings removed in 1.1.11 (export layouts, custom template, notes file properties) are dropped.
     expect(normalizeSettings({ exportTemplate: "custom", notesFrontmatter: "tags: x" })).not.toHaveProperty("exportTemplate");
   });

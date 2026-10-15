@@ -32,6 +32,8 @@ export interface ReaderSettings {
   defaultHighlightColor: HighlightColor;
   defaultHighlightStyle: HighlightStyle;
   connectAdjacentHighlights: boolean;
+  /** On Android, dismiss the system Copy/Share/Select all bar once a touch selection settles. */
+  hideAndroidTextMenu: boolean;
   interfaceDensity: InterfaceDensity;
   hasSeenReaderTutorial: boolean;
   syncEnabled: boolean;

@@ -5,6 +5,8 @@ import type { ReaderSettings } from "./types";
 
 const SYNC_DESCRIPTION = "Keep reading progress, highlights, notes, bookmarks, and reading time in sync between your devices. "
   + "Each device writes its own file in the sync folder. With Obsidian Sync, turn on \"Sync all other types\" so these .json files are included.";
+const HIDE_ANDROID_MENU_DESCRIPTION = "When you lift your finger after selecting text, dismiss Android's Copy, Share and Select all bar "
+  + "so it does not cover the reader's toolbar. Android then also hides its selection handles: long-press again to change the selection.";
 const SYNC_FOLDER_DESCRIPTION = "Vault folder for the per-device sync files. Use the same folder on every device.";
 
 export interface SettingsHost {
@@ -181,6 +183,13 @@ function renderSettings(
     .addToggle((toggle) => toggle
       .setValue(get().connectAdjacentHighlights)
       .onChange((connectAdjacentHighlights) => host.updateReaderSettings({ connectAdjacentHighlights })));
+
+  new Setting(container)
+    .setName("Hide Android's text menu")
+    .setDesc(HIDE_ANDROID_MENU_DESCRIPTION)
+    .addToggle((toggle) => toggle
+      .setValue(get().hideAndroidTextMenu)
+      .onChange((hideAndroidTextMenu) => host.updateReaderSettings({ hideAndroidTextMenu })));
 
 }
 
@@ -388,6 +397,11 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
             name: "Merge adjacent highlights",
             control: { type: "toggle", key: "connectAdjacentHighlights" },
           },
+          {
+            name: "Hide Android's text menu",
+            desc: HIDE_ANDROID_MENU_DESCRIPTION,
+            control: { type: "toggle", key: "hideAndroidTextMenu" },
+          },
         ],
       },
       {
@@ -421,6 +435,7 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "defaultHighlightColor": return settings.defaultHighlightColor;
       case "defaultHighlightStyle": return settings.defaultHighlightStyle;
       case "connectAdjacentHighlights": return settings.connectAdjacentHighlights;
+      case "hideAndroidTextMenu": return settings.hideAndroidTextMenu;
       case "font": return settings.font;
       case "fontSizePercent": return settings.fontSizePercent;
       case "lineHeight": return settings.lineHeight;
@@ -452,6 +467,9 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
         return;
       case "connectAdjacentHighlights":
         if (typeof value === "boolean") this.host.updateReaderSettings({ connectAdjacentHighlights: value });
+        return;
+      case "hideAndroidTextMenu":
+        if (typeof value === "boolean") this.host.updateReaderSettings({ hideAndroidTextMenu: value });
         return;
       case "interfaceDensity":
         if (value === "comfortable" || value === "compact") this.host.updateReaderSettings({ interfaceDensity: value });

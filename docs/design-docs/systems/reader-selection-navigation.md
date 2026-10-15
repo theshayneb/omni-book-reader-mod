@@ -40,6 +40,10 @@ Plugin mouse edge assistance now requires a literal `mouse` pointer on desktop w
 
 `tests/reader-selection-events.test.ts` executes the installed Foliate selection-listener code with its private visible-range field exposed to a DOM fixture, alongside the real reader document handlers. It covers forward/backward range extension, held/released gestures, collapsed touch moves, desktop edge assistance, ordinary swipes, and cleanup. This proves event-path arbitration; jsdom does not prove native Android handle behavior.
 
+## Android text menu dismissal (2026-10-15)
+
+Android shows its own Copy/Share/Select all bar for touch selections, and it can cover the reader's selection toolbar. With the `hideAndroidTextMenu` setting (default on), 350 ms after a touch gesture ends with a text selection, the reader removes and re-adds the same range from script; Android shows the bar only for user-made selections, so it is dismissed while the range, the pending annotation selection and the reader's toolbar stay. Android also drops its native handles, so changing the selection needs a new long-press. `shouldDismissNativeSelectionMenu` in `mobile-input.ts` decides: Android only, setting on, a non-collapsed selection, and no touch in progress, so a handle drag (which sets the touch-gesture flag on `touchstart`) is never interrupted. The re-added range fires one more `selectionchange`, which follows the existing capture-phase arbitration above; navigation is unaffected. Not verified on a device from CI.
+
 ## Chapter-boundary preflight
 
 For the pinned `foliate-js` paginator, `page` and `pages` expose the current rendered page and total pages. In paginated reflowable content, page `1` is the first content page and `pages - 2` is the last content page. Before a desktop mouse edge-assisted selection turn:

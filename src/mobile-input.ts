@@ -151,3 +151,18 @@ export function decideSelectionPageTurn(request: SelectionPageTurnRequest): Sele
     );
   return { blocked, notify: blocked && !request.noticeAlreadyShown };
 }
+
+/**
+ * Whether to re-apply a settled touch selection so Android dismisses its own Copy/Share/Select all bar.
+ * Android shows that bar only for user-made selections; a selection set again by script keeps the
+ * range (and the reader's toolbar) but drops the bar and the native handles. Never while a finger is
+ * still down, so dragging a handle is never interrupted.
+ */
+export function shouldDismissNativeSelectionMenu(state: {
+  isAndroid: boolean;
+  enabled: boolean;
+  hasSelection: boolean;
+  touchInProgress: boolean;
+}): boolean {
+  return state.isAndroid && state.enabled && state.hasSelection && !state.touchInProgress;
+}

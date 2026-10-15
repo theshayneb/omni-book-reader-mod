@@ -39,6 +39,7 @@ import {
   pageTurnCrossesSection,
   selectionEdgePageTurnDirection,
   shouldConsumeTouchSelectionMove,
+  shouldDismissNativeSelectionMenu,
   shouldDismissSelectionOnClick,
   shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
@@ -151,6 +152,9 @@ export interface ReaderPluginHost extends SettingsHost {
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void>;
   recordReadingProgress(sourceFile: TFile, page: string): Promise<void>;
 }
+
+/** Wait for Android to finish adjusting a touch selection before dismissing its text menu. */
+const NATIVE_MENU_DISMISS_DELAY_MS = 350;
 
 /** How long a just-cleared selection can still be looked up (Android may clear it as the toolbar is tapped). */
 const RECENT_SELECTION_MS = 10000;
@@ -580,6 +584,7 @@ export class OmniBookReaderView extends FileView {
   private selectionPageTurnRunning = false;
   private selectionNavigationNoticeShown = false;
   private selectionTouchGestureActive = false;
+  private nativeMenuTimer: number | null = null;
   private bookTitle = "ePub Reader";
   private bookAuthor = "";
   private fixedLayout = false;
@@ -1613,6 +1618,7 @@ export class OmniBookReaderView extends FileView {
       );
       touchStartedWithSelection = false;
       selectingText = false;
+      if (hasTextSelection) this.scheduleNativeMenuDismissal(document);
       if (!start || !touch) {
         if (hasTextSelection) {
           if (attemptedSelectionPageTurn) this.blockPageTurnForSelection("ordinary", document, event);
@@ -2369,6 +2375,31 @@ export class OmniBookReaderView extends FileView {
     }
   }
 
+  /**
+   * After a touch selection settles, set the same range again from script so Android dismisses its
+   * Copy/Share/Select all bar, which otherwise covers the reader's toolbar ("Hide Android's text menu").
+   */
+  private scheduleNativeMenuDismissal(document: Document): void {
+    if (this.nativeMenuTimer !== null) window.clearTimeout(this.nativeMenuTimer);
+    this.nativeMenuTimer = window.setTimeout(() => {
+      this.nativeMenuTimer = null;
+      const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
+      if (!selection || !shouldDismissNativeSelectionMenu({
+        isAndroid: Platform.isAndroidApp,
+        enabled: this.plugin.getReaderSettings().hideAndroidTextMenu,
+        hasSelection: selection.rangeCount > 0 && !selection.isCollapsed,
+        touchInProgress: this.selectionTouchGestureActive,
+      })) return;
+      try {
+        const range = selection.getRangeAt(0).cloneRange();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } catch {
+        // The section may have been unloaded meanwhile.
+      }
+    }, NATIVE_MENU_DISMISS_DELAY_MS);
+  }
+
   private clearPendingSelection(clearNative = true): void {
     if (this.selectionClearTimer !== null) window.clearTimeout(this.selectionClearTimer);
     this.selectionClearTimer = null;
@@ -2969,6 +3000,8 @@ export class OmniBookReaderView extends FileView {
     this.selectionPageTurnGuardUntil = 0;
     this.closeLookupPanel();
     this.lastSelection = null;
+    if (this.nativeMenuTimer !== null) window.clearTimeout(this.nativeMenuTimer);
+    this.nativeMenuTimer = null;
     if (invalidateLoad) this.loadGeneration += 1;
     this.saveCurrentPosition();
     this.tickReadingStats();

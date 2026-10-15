@@ -12,6 +12,7 @@ import {
   selectionEdgePageTurnDirection,
   swipePageTurnDirection,
   tapPageTurnDirection,
+  shouldDismissNativeSelectionMenu,
 } from "../src/mobile-input";
 
 describe("mobilePageTurnDirection", () => {
@@ -177,5 +178,20 @@ describe("mobilePageTurnDirection", () => {
     expect(pageTurnCrossesSection("next", "ltr", undefined, 8)).toBe(false);
     expect(pageTurnCrossesSection("next", "ltr", 6, undefined)).toBe(false);
     expect(pageTurnCrossesSection("next", "ltr", 1, 2)).toBe(false);
+  });
+});
+
+describe("Android text menu dismissal", () => {
+  const base = { isAndroid: true, enabled: true, hasSelection: true, touchInProgress: false };
+
+  it("re-applies a settled Android touch selection when the setting is on", () => {
+    expect(shouldDismissNativeSelectionMenu(base)).toBe(true);
+  });
+
+  it("never interrupts a handle drag and does nothing elsewhere", () => {
+    expect(shouldDismissNativeSelectionMenu({ ...base, touchInProgress: true })).toBe(false);
+    expect(shouldDismissNativeSelectionMenu({ ...base, isAndroid: false })).toBe(false);
+    expect(shouldDismissNativeSelectionMenu({ ...base, enabled: false })).toBe(false);
+    expect(shouldDismissNativeSelectionMenu({ ...base, hasSelection: false })).toBe(false);
   });
 });
