@@ -151,6 +151,7 @@ export interface ReaderPluginHost extends SettingsHost {
   updateReaderSettings(patch: Partial<ReaderSettings>): void;
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void>;
   recordReadingProgress(sourceFile: TFile, page: string): Promise<void>;
+  addQuoteToBookNote(sourceFile: TFile, highlight: ReaderHighlight): Promise<void>;
 }
 
 /** Wait for Android to finish adjusting a touch selection before dismissing its text menu. */
@@ -2323,12 +2324,16 @@ export class OmniBookReaderView extends FileView {
   }
 
   private openHighlightTags(highlight: ReaderHighlight): void {
-    new HighlightTagsModal(this.app, highlight, async (tags) => this.saveHighlightEdit(highlight, {
-      note: highlight.note ?? "",
-      color: highlight.color,
-      style: highlight.style,
-      tags,
-    })).open();
+    new HighlightTagsModal(this.app, highlight, async (tags) => {
+      await this.saveHighlightEdit(highlight, {
+        note: highlight.note ?? "",
+        color: highlight.color,
+        style: highlight.style,
+        tags,
+      });
+      // Highlights saved this way are also collected in the book note's Quotes property.
+      if (this.file) await this.plugin.addQuoteToBookNote(this.file, highlight);
+    }).open();
   }
 
   private async saveHighlightEdit(highlight: ReaderHighlight, edit: HighlightEdit): Promise<void> {

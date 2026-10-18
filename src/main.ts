@@ -7,7 +7,7 @@ import { ReadingSyncService } from "./reading-sync";
 import type { AppliedBookChange } from "./reading-sync-model";
 import { OmniBookReaderSettingTab } from "./settings-ui";
 import { ReaderDataStore } from "./store";
-import type { ReaderSettings } from "./types";
+import type { ReaderHighlight, ReaderSettings } from "./types";
 import { isValidCfi, normalizeVaultPath, progressValue } from "./utils";
 
 function progressText(value: number): string {
@@ -294,6 +294,11 @@ export default class OmniBookReaderPlugin extends Plugin {
 
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void> {
     return this.annotationDocuments.sync(input);
+  }
+
+  /** Adds a highlight saved with "Highlight and add tags" to the book note's `Quotes` property. */
+  addQuoteToBookNote(sourceFile: TFile, highlight: ReaderHighlight): Promise<void> {
+    return this.annotationDocuments.addQuote(sourceFile, highlight, (note, update) => this.app.fileManager.processFrontMatter(note, update));
   }
 
   /**

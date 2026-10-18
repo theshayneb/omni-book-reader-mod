@@ -142,6 +142,48 @@ export function renderHighlightLine(highlight: ReaderHighlight, sourcePath: stri
   ].filter(Boolean).join(" ");
 }
 
+/** Book note list property that collects highlights saved with "Highlight and add tags". */
+export const QUOTES_PROPERTY = "Quotes";
+
+/**
+ * A highlight as a `Quotes` entry: `passage #quote #tags`. Double quotes inside the passage become single
+ * quotes ("…" → '…', “…” → ‘…’) so they never clash with the quotation marks around the entry.
+ */
+export function quoteEntry(highlight: ReaderHighlight): string {
+  const passage = singleLine(highlight.text, "(empty excerpt)").replace(/"/g, "'").replace(/“/g, "‘").replace(/”/g, "’");
+  return [passage, QUOTE_TAG, tagText(highlight)].filter(Boolean).join(" ");
+}
+
+/**
+ * Adds `entry` to the `Quotes` list in a note's frontmatter, always as a double-quoted YAML string so the
+ * `#` tags stay part of the value (unquoted, YAML would read ` #…` as a comment). Other properties and
+ * existing entries are left as they are. Returns the content unchanged when the entry is already there,
+ * and `null` when `Quotes` exists in a form this cannot extend safely (inline `[…]` or a single value).
+ */
+export function addQuoteToFrontmatter(content: string, entry: string): string | null {
+  const item = JSON.stringify(entry.replace(/\s+/g, " ").trim());
+  const text = content.replace(/\r\n?/g, "\n");
+  const match = /^---\n([\s\S]*?)\n?---[ \t]*(?:\n|$)/.exec(text);
+  if (!match) return `---\n${QUOTES_PROPERTY}:\n  - ${item}\n---\n${text}`;
+  const lines = (match[1] ?? "").split("\n").filter((line, index, all) => line || index < all.length - 1);
+  const keyIndex = lines.findIndex((line) => new RegExp(`^${QUOTES_PROPERTY}:\\s*$`).test(line));
+  if (keyIndex < 0) {
+    if (lines.some((line) => new RegExp(`^${QUOTES_PROPERTY}:`).test(line))) return null;
+    lines.push(`${QUOTES_PROPERTY}:`, `  - ${item}`);
+  } else {
+    let end = keyIndex + 1;
+    let indent = "  ";
+    while (end < lines.length && /^\s*-(\s|$)/.test(lines[end] ?? "")) {
+      const value = (lines[end] ?? "").replace(/^\s*-\s*/, "").trim();
+      if (value === item || value.replace(/^["']|["']$/g, "") === entry.trim()) return content;
+      indent = /^(\s*)-/.exec(lines[end] ?? "")?.[1] ?? indent;
+      end += 1;
+    }
+    lines.splice(end, 0, `${indent}- ${item}`);
+  }
+  return `---\n${lines.join("\n")}\n---\n${text.slice(match[0].length)}`;
+}
+
 /** The book's highlights as callout lines, in book order. */
 export function renderHighlightLines(highlights: ReaderHighlight[], sourcePath: string, vaultName = ""): string[] {
   return [...highlights].sort(comparePosition).map((highlight) => renderHighlightLine(highlight, sourcePath, vaultName));
@@ -265,6 +307,39 @@ export class AnnotationDocumentService {
 
   async flush(): Promise<void> {
     await this.writeChain;
+  }
+
+  /**
+   * Adds a highlight to the book note's `Quotes` property. Runs in the same queue as the callout writes,
+   * so the two never overwrite each other. Falls back to Obsidian's frontmatter API when the property
+   * is in a form that cannot be extended as text.
+   */
+  addQuote(
+    sourceFile: TFile,
+    highlight: ReaderHighlight,
+    processFrontMatter: (note: TFile, update: (frontmatter: Record<string, unknown>) => void) => Promise<void>,
+  ): Promise<void> {
+    const job = this.writeChain
+      .catch(() => undefined)
+      .then(async () => {
+        const note = this.findBookNote(sourceFile);
+        if (!note) throw new Error(`No note named "${sourceFile.basename}" was found for this book's Quotes`);
+        const entry = quoteEntry(highlight);
+        const current = await this.vault.cachedRead(note);
+        const next = addQuoteToFrontmatter(current, entry);
+        if (next === null) {
+          await processFrontMatter(note, (frontmatter) => {
+            const value: unknown = frontmatter[QUOTES_PROPERTY];
+            const list: unknown[] = Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+            if (!list.includes(entry)) list.push(entry);
+            frontmatter[QUOTES_PROPERTY] = list;
+          });
+        } else if (next !== current) {
+          await this.vault.modify(note, next);
+        }
+      });
+    this.writeChain = job.catch(() => undefined);
+    return job;
   }
 
   migrateLegacyProtocolLinks(documents: Iterable<AnnotationDocuments | undefined>): Promise<void> {

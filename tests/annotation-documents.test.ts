@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AnnotationDocumentService,
   HIGHLIGHTS_CALLOUT,
+  addQuoteToFrontmatter,
+  quoteEntry,
   annotationFileName,
   buildCfiLink,
   renderHighlightLine,
@@ -244,5 +246,49 @@ describe("book note highlights", () => {
     addFile(old, "[a](obsidian://omni-book-reader?vault=V&path=p&cfi=c)\n");
     await service.migrateLegacyProtocolLinks([{ highlightPath: old, notePath: old, createdDate: "" }]);
     expect(entries.get(old)?.content).toBe("[a](obsidian://omni-book-reader-mod?sourceVault=V&path=p&cfi=c)\n");
+  });
+
+  it("builds Quotes entries with tags and single quotes inside the passage", () => {
+    expect(quoteEntry(highlight({ text: 'This is a test quote where a guy says "Quote." Test', tags: ["funny"] })))
+      .toBe("This is a test quote where a guy says 'Quote.' Test #quote #funny");
+    expect(quoteEntry(highlight({ text: "He said “hi”", tags: ["quote"] }))).toBe("He said ‘hi’ #quote");
+  });
+
+  it("adds Quotes entries as double-quoted YAML strings", () => {
+    const entry = "A passage #quote #big_idea";
+    expect(addQuoteToFrontmatter("# Book\n", entry)).toBe('---\nQuotes:\n  - "A passage #quote #big_idea"\n---\n# Book\n');
+
+    const withProps = "---\nstatus: reading\n---\n# Book\n";
+    expect(addQuoteToFrontmatter(withProps, entry)).toBe('---\nstatus: reading\nQuotes:\n  - "A passage #quote #big_idea"\n---\n# Book\n');
+
+    const withList = '---\nQuotes:\n    - "First #quote"\nProgress: 12\n---\nBody';
+    const added = addQuoteToFrontmatter(withList, entry);
+    expect(added).toBe('---\nQuotes:\n    - "First #quote"\n    - "A passage #quote #big_idea"\nProgress: 12\n---\nBody');
+    expect(addQuoteToFrontmatter(added ?? "", entry)).toBe(added);
+
+    const emptyList = "---\nQuotes:\ntags: [x]\n---\n";
+    expect(addQuoteToFrontmatter(emptyList, entry)).toBe('---\nQuotes:\n  - "A passage #quote #big_idea"\ntags: [x]\n---\n');
+
+    expect(addQuoteToFrontmatter("---\nQuotes: [a, b]\n---\n", entry)).toBeNull();
+    expect(addQuoteToFrontmatter("---\nQuotes: one\n---\n", entry)).toBeNull();
+    expect(addQuoteToFrontmatter("x", 'back\\slash #quote')).toBe('---\nQuotes:\n  - "back\\\\slash #quote"\n---\nx');
+  });
+
+  it("writes Quotes into the book note, falling back to Obsidian's frontmatter API", async () => {
+    const { entries, service } = setup("---\nstatus: reading\n---\n# Test Book\n");
+    const item = highlight({ tags: ["funny"] });
+    const processFrontMatter = vi.fn();
+    await service.addQuote(sourceFile, item, processFrontMatter);
+    expect(entries.get(notePath)?.content).toBe('---\nstatus: reading\nQuotes:\n  - "The highlighted source text #quote #funny"\n---\n# Test Book\n');
+    expect(processFrontMatter).not.toHaveBeenCalled();
+
+    const inline = setup("---\nQuotes: [old]\n---\n");
+    const update = vi.fn(async (_note: TFile, apply: (frontmatter: Record<string, unknown>) => void) => {
+      const frontmatter: Record<string, unknown> = { Quotes: ["old"] };
+      apply(frontmatter);
+      expect(frontmatter.Quotes).toEqual(["old", "The highlighted source text #quote #funny"]);
+    });
+    await inline.service.addQuote(sourceFile, item, update);
+    expect(update).toHaveBeenCalledOnce();
   });
 });
